@@ -1,0 +1,1751 @@
+
+-- /nextjs_oem_frontend/components/Loading.tsx --
+// components/Loading.tsx
+import React from "react"
+
+
+export default function Loading() {
+  return (
+    <div className="d-flex justify-content-center align-items-center" style={{ height: '100vh' }}>
+      <div className="spinner-border text-primary" role="status">
+        <span className="visually-hidden">Loading...</span>
+      </div>
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/Button.tsx --
+'use client'
+
+import React from 'react'
+
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement>
+
+export default function Button({ children, ...props }: ButtonProps) {
+  return (
+    <button className="btn btn-primary" {...props}>
+      {children}
+    </button>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/APICard.tsx --
+'use client'
+
+import React from 'react'
+
+export type APIResponse<T = unknown> = {
+  status: number | 'Error'
+  data: T | string
+}
+
+interface APICardProps {
+  title: string
+  docs: string
+  response: APIResponse
+}
+
+export default function APICard({ title, docs, response }: APICardProps) {
+  return (
+    <div className="card">
+      <div className="card-body">
+        <h5 className="card-title">{title}</h5>
+        <a href={docs} target="_blank" rel="noopener noreferrer">
+          API documentation
+        </a>
+        <div className="mb-3 mt-3">
+          <label className="form-label">Status</label>
+          <input
+            className="form-control"
+            value={response.status}
+            readOnly
+          />
+        </div>
+        <pre className="overflow-x-scroll">
+          {typeof response.data === 'string'
+            ? response.data
+            : JSON.stringify(response.data, null, 4)}
+        </pre>
+      </div>
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/Navbar.tsx --
+'use client'
+
+import React, { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
+import { useAuth } from '../auth/AuthContext'
+import { useLogout } from '../auth/useLogout'
+import clsx from 'clsx'
+
+export default function Navbar() {
+  const { isAuthenticated, user } = useAuth()
+  const { triggerLogout } = useLogout()
+  const [isCollapsed, setIsCollapsed] = useState(true)
+
+  useEffect(() => {
+    // Muat JavaScript bootstrap agar dropdown berfungsi
+    import('bootstrap/dist/js/bootstrap.bundle.min.js')
+  }, [])
+
+
+  const toggleNavbar = () => setIsCollapsed((prev) => !prev)
+
+  const displayName = useMemo(() => {
+    if (!user) return null
+    return String(user.email ?? user.username ?? 'User')
+  }, [user])
+
+  return (
+    <nav className="navbar navbar-expand-lg navbar-dark bg-dark px-3">
+      <Link href="/" className="navbar-brand">Next-Allauth</Link>
+      <button
+        className="navbar-toggler"
+        type="button"
+        onClick={toggleNavbar}
+        aria-controls="navbarNav"
+        aria-expanded={!isCollapsed}
+        aria-label="Toggle navigation"
+      >
+        <span className="navbar-toggler-icon" />
+      </button>
+
+      <div
+        className={clsx('collapse navbar-collapse', { show: !isCollapsed })}
+        id="navbarNav"
+      >
+        <ul className="navbar-nav me-auto mb-2 mb-lg-0">
+          <li className="nav-item">
+            <Link href="/calculator" className="nav-link">Calculator</Link>
+          </li>
+          {["admin", "manager", "staff"].includes(user?.role) && (
+            <li className="nav-item dropdown">
+              <a
+                className="nav-link dropdown-toggle"
+                href="#"
+                id="appDropdown"
+                role="button"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                App
+              </a>
+              <ul className="dropdown-menu dropdown-menu-end" aria-labelledby="appDropdown">
+                <>
+                  {user?.is_superuser && user?.role === "admin" && (
+                    <li><Link href="/admin/users/status" className="dropdown-item">User Status</Link></li>
+                  )}
+
+                  {user?.is_superuser && ["admin", "manager"].includes(user?.role) && (
+                    <li><Link href="/admin/users/roles" className="dropdown-item">User Roles</Link></li>
+                  )}
+
+                  {["admin", "manager"].includes(user?.role) && (
+                    <li><Link href="/admin/invitations" className="dropdown-item">Invitations</Link></li>
+                  )}
+
+                  {["admin", "manager", "staff"].includes(user?.role) && (
+                    <li><Link href="/admin/blog" className="dropdown-item">Blog</Link></li>
+                  )}
+                </>
+              </ul>
+            </li>
+          )}
+          <li className="nav-item">
+            <Link href="/blog" className="nav-link">Blog</Link>
+          </li>
+        </ul>
+
+        <ul className="navbar-nav ms-auto mb-2 mb-lg-0">
+          {isAuthenticated ? (
+            <>
+              <li className="nav-item dropdown">
+                <a
+                  className="nav-link dropdown-toggle"
+                  href="#"
+                  id="accountDropdown"
+                  role="button"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                >
+                  {displayName}
+                </a>
+                <ul className="dropdown-menu dropdown-menu-end" aria-labelledby="accountDropdown">
+                  <li><Link href="/account" className="dropdown-item">Profil</Link></li>
+                  <li><Link href="/account/email" className="dropdown-item">Email</Link></li>
+                  <li><Link href="/account/password/change" className="dropdown-item">Ubah Password</Link></li>
+                  <li><Link href="/account/sessions" className="dropdown-item">Sesi Aktif</Link></li>
+                  <li><Link href="/account/provider" className="dropdown-item">Akun Sosial</Link></li>
+                  <li><hr className="dropdown-divider" /></li>
+                  <li>
+                    <button onClick={triggerLogout} className="dropdown-item text-danger">
+                      Logout
+                    </button>
+                  </li>
+                </ul>
+              </li>
+            </>
+          ) : (
+            <>
+              <li className="nav-item">
+                <Link href="/account/login" className="nav-link">Login</Link>
+              </li>
+              <li className="nav-item">
+                <Link href="/account/signup" className="nav-link">Signup</Link>
+              </li>
+            </>
+          )}
+        </ul>
+      </div>
+    </nav>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/ConfigLoader.tsx --
+'use client'
+
+import React, { useEffect } from 'react'
+import { useConfig } from '../auth/AuthContext'
+import { isConfigReady } from '../utils/isConfigReady'
+
+interface ConfigLoaderProps {
+  children: React.ReactNode
+  fallback?: React.ReactNode
+}
+
+export default function ConfigLoader({
+  children,
+  fallback = <DefaultConfigFallback />,
+}: ConfigLoaderProps) {
+  const config = useConfig()
+
+  useEffect(() => {
+    console.log('[ConfigLoader] config:', config)
+    if (!isConfigReady(config)) {
+      console.warn('[ConfigLoader] config belum siap:', config)
+      console.log('[ConfigLoader] config:', config)
+      console.log('[ConfigLoader] isReady:', isConfigReady(config))
+    }
+  }, [config])
+
+  if (!isConfigReady(config)) {
+    return fallback
+  }
+
+  return <>{children}</>
+}
+
+function DefaultConfigFallback() {
+  return (
+    <div className="text-center my-5">
+      <div className="spinner-border text-primary" role="status" />
+      <p className="mt-3">Memuat konfigurasi...</p>
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/Spinner.tsx --
+// src/components/Spinner.tsx
+import React from 'react'
+
+interface SpinnerProps {
+  small?: boolean
+  className?: string
+}
+
+export default function Spinner({ small = false, className = '' }: SpinnerProps) {
+  const sizeClass = small ? 'spinner-border-sm' : 'spinner-border'
+  return (
+    <div className={`spinner ${sizeClass} ${className}`} role="status">
+      <span className="visually-hidden">Loading...</span>
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/ProviderList.tsx --
+'use client'
+
+import React from "react"
+import { useConfig } from '../auth/AuthContext'
+import { redirectToProvider, settings, Client, AuthProcess } from '../lib/allauth'
+
+
+type Props = {
+  callbackURL: string
+  process?: 'login' | 'connect'
+}
+
+export default function ProviderList({ callbackURL, process = AuthProcess.LOGIN }: Props) {
+  const config = useConfig()
+  const providers = config?.socialaccount?.providers || []
+
+  if (!providers.length) return null
+
+  return (
+    <>
+      {settings.client === Client.BROWSER && (
+        <ul className="list-unstyled">
+          {providers.map(provider => (
+            <li key={provider.id} className="mb-2">
+              <button
+                onClick={() => redirectToProvider(provider.id, callbackURL, process)}
+                className="btn btn-outline-secondary w-100"
+              >
+                Login dengan {provider.name ?? provider.id}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/BootstrapInit.tsx --
+// components/BootstrapInit.tsx
+"use client";
+
+import { useEffect } from "react";
+
+export default function BootstrapInit() {
+  useEffect(() => {
+    // Import bootstrap bundle JS di client
+    import("bootstrap/dist/js/bootstrap.bundle.min.js").then((bootstrap) => {
+      // Setelah bundle siap, aktifkan semua tooltip
+      const tooltipTriggerList = Array.from(
+        document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      );
+      tooltipTriggerList.forEach(
+        (el) => new bootstrap.Tooltip(el as HTMLElement)
+      );
+    });
+  }, []);
+
+  return null;
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/NavbarWrapper.tsx --
+'use client'
+
+import React from 'react'
+import dynamic from 'next/dynamic'
+
+// ✅ Import Navbar dynamically with SSR off
+const Navbar = dynamic(() => import('./Navbar'), { ssr: false })
+
+export default function NavbarWrapper() {
+  return <Navbar />
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/AppWrapper.tsx --
+// src/components/AppWrapper.tsx
+'use client'
+
+import React from 'react'
+import { SWRConfig } from 'swr'
+import { csrfMiddleware } from '../auth/csrfMiddleware'
+
+export default function AppWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <SWRConfig value={{
+      use: [csrfMiddleware],
+    }}>
+      {children}
+    </SWRConfig>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/ImageViewerEditorLike.tsx --
+// components/wysiwyg/ImageViewerEditorLike.tsx
+"use client";
+
+import React from "react";
+import { ImageBase } from "./ImageBase";
+import type { Align } from "./ImageRenderer";
+
+interface ImageViewerEditorLikeProps {
+  url: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  align?: Align;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export function ImageViewerEditorLike({
+  url,
+  alt,
+  width,
+  height,
+  align = "center",
+  className,
+  style,
+}: ImageViewerEditorLikeProps) {
+  const containerStyle: React.CSSProperties = {
+    display: "block",
+    textAlign: align,
+    ...style,
+  };
+
+  return (
+    <div style={containerStyle}>
+      <ImageBase
+        url={url}
+        alt={alt}
+        width={width}
+        height={height}
+        align={align}
+        isEditing={false}
+        selected={false}
+        focused={false}
+        className={className ?? "rounded"}
+        style={{ float: undefined, margin: undefined }}
+      />
+    </div>
+  );
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/ImageBase.tsx --
+// components/wysiwyg/ImageBase.tsx
+"use client";
+
+import React, { useRef, useState, useEffect, useCallback } from "react";
+import type { Align } from "./ImageRenderer";
+
+export interface ImageBaseProps {
+  url: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  align?: Align;
+  isEditing?: boolean;
+  selected?: boolean;
+  focused?: boolean;
+  children?: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  onRemove?: (e: React.MouseEvent) => void;
+  onResize?: (newWidth: number, newHeight: number) => void;
+  onEditAlt?: () => void;
+  onAlign?: (align: Align) => void;
+  keepAspectRatio?: boolean;
+  onToggleCaption?: () => void;
+  hasCaption?: boolean;
+}
+
+export function ImageBase({
+  url,
+  alt,
+  width,
+  height,
+  align = "center",
+  isEditing = false,
+  selected = false,
+  focused = false,
+  children,
+  className,
+  style,
+  onRemove,
+  onResize: _onResize,
+  onEditAlt,
+  onAlign,
+  onToggleCaption,
+  hasCaption,
+}: ImageBaseProps) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [internalSize, setInternalSize] = useState<{ w?: number; h?: number }>({
+    w: width,
+    h: height,
+  });
+
+  useEffect(() => {
+    if (imgRef.current && (!internalSize.w || !internalSize.h)) {
+      setInternalSize({
+        w: width ?? imgRef.current.naturalWidth,
+        h: height ?? imgRef.current.naturalHeight,
+      });
+    }
+  }, [width, height, internalSize.w, internalSize.h]);
+
+  const displayW = width ?? internalSize.w;
+  const displayH = height ?? internalSize.h;
+
+  const handleLoad = useCallback(() => {
+    if (imgRef.current && (!internalSize.w || !internalSize.h)) {
+      setInternalSize({
+        w: width ?? imgRef.current.naturalWidth,
+        h: height ?? imgRef.current.naturalHeight,
+      });
+    }
+  }, [width, height, internalSize.w, internalSize.h]);
+
+  const containerStyle: React.CSSProperties = {
+    display: "block",
+    textAlign: align,
+    ...style,
+  };
+
+  return (
+    <div contentEditable={false} style={containerStyle}>
+      <div style={{ position: "relative", display: "inline-block", width: displayW }}>
+        <img
+          ref={imgRef}
+          src={url}
+          alt={alt ?? ""}
+          onLoad={handleLoad}
+          style={{
+            width: displayW ? `${displayW}px` : "auto",
+            height: displayH ? `${displayH}px` : "auto",
+            display: "inline-block",
+            boxShadow: isEditing && selected && focused ? "0 0 0 2px #0d6efd" : undefined,
+            transition: "box-shadow 0.2s",
+          }}
+          className={className}
+        />
+
+        {isEditing && selected && focused && (
+          <div
+            contentEditable={false}
+            style={{
+              position: "absolute",
+              top: 2,
+              right: 2,
+              display: "flex",
+              gap: 2,
+              background: "rgba(255,255,255,0.8)",
+              padding: 2,
+              borderRadius: 2,
+              zIndex: 30,
+            }}
+          >
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onEditAlt?.();
+              }}
+              style={{ fontSize: 10 }}
+            >
+              Alt
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onAlign?.("left");
+              }}
+              style={{ fontSize: 10, fontWeight: align === "left" ? "bold" : undefined }}
+            >
+              ◀
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onAlign?.("center");
+              }}
+              style={{ fontSize: 10, fontWeight: align === "center" ? "bold" : undefined }}
+            >
+              ●
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onAlign?.("right");
+              }}
+              style={{ fontSize: 10, fontWeight: align === "right" ? "bold" : undefined }}
+            >
+              ▶
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                console.log("[ImageBase] Caption button clicked. hasCaption:", hasCaption);
+                onToggleCaption?.();
+              }}
+              style={{
+                fontSize: 10,
+                fontWeight: hasCaption ? "bold" : undefined,
+                color: hasCaption ? "#0d6efd" : undefined,
+              }}
+            >
+              C
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onRemove?.(e);
+              }}
+              style={{ fontSize: 10, color: "red" }}
+            >
+              X
+            </button>
+          </div>
+        )}
+      </div>
+
+      {children && <div>{children}</div>}
+    </div>
+  );
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/ImageRenderer.tsx --
+// components/wysiwyg/ImageRenderer.tsx
+"use client";
+
+import React, { useState, useCallback, memo } from "react";
+import { ImageBase, ImageBaseProps } from "./ImageBase";
+
+export type Align = "left" | "center" | "right";
+type ResizeDir = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+interface ImageRendererProps extends ImageBaseProps {
+  keepAspectRatio?: boolean;
+  onRemove?: (e: React.MouseEvent) => void;
+  onResize?: (newWidth: number, newHeight: number) => void;
+  onEditAlt?: () => void;
+  onAlign?: (align: Align) => void;
+}
+
+function ImageRendererComponent({
+  keepAspectRatio = true,
+  onResize,
+  ...baseProps
+}: ImageRendererProps) {
+  const [size, setSize] = useState<{ w?: number; h?: number }>({
+    w: baseProps.width ?? 200,
+    h: baseProps.height ?? 200,
+  });
+  const aspectRatio = size.w && size.h ? size.w / size.h : 1;
+
+  const createResizerHandler = useCallback(
+    (dir: ResizeDir) => (e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!size.w || !size.h) return;
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startW = size.w;
+      const startH = size.h;
+      const prevUserSelect = document.body.style.userSelect;
+      document.body.style.userSelect = "none";
+
+      const onMove = (ev: MouseEvent) => {
+        let newW =
+          startW +
+          (dir.includes("right")
+            ? ev.clientX - startX
+            : dir.includes("left")
+              ? startX - ev.clientX
+              : 0);
+        let newH =
+          startH +
+          (dir.includes("bottom")
+            ? ev.clientY - startY
+            : dir.includes("top")
+              ? startY - ev.clientY
+              : 0);
+
+        if (keepAspectRatio && !ev.shiftKey && newW > 0)
+          newH = newW / aspectRatio;
+
+        newW = Math.max(50, Math.round(newW));
+        newH = Math.max(50, Math.round(newH));
+
+        setSize({ w: newW, h: newH });
+        onResize?.(newW, newH);
+      };
+
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        document.body.style.userSelect = prevUserSelect || "";
+      };
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    },
+    [size.w, size.h, aspectRatio, keepAspectRatio, onResize]
+  );
+
+  const resizerStyle: React.CSSProperties = {
+    position: "absolute",
+    width: 12,
+    height: 12,
+    background: "#fff",
+    border: "2px solid #0d6efd",
+    borderRadius: 2,
+    userSelect: "none",
+    zIndex: 40,
+    pointerEvents: "auto",
+    touchAction: "none",
+  };
+
+  return (
+    <div
+      contentEditable={false}
+      style={{
+        position: "relative",
+        display: "inline-block",
+        outline:
+          baseProps.selected && baseProps.focused
+            ? "2px solid #0d6efd"
+            : "none",
+      }}
+    >
+      <ImageBase
+        {...baseProps}
+        width={size.w}
+        height={size.h}
+        isEditing={baseProps.isEditing}
+        onToggleCaption={baseProps.onToggleCaption} // forward
+        hasCaption={baseProps.hasCaption}           // forward
+      />
+
+      {baseProps.isEditing && baseProps.selected && baseProps.focused && (
+        <>
+          {(
+            ["top-left", "top-right", "bottom-left", "bottom-right"] as ResizeDir[]
+          ).map((dir) => {
+            const styleMap: Record<ResizeDir, React.CSSProperties> = {
+              "top-left": { top: -6, left: -6, cursor: "nwse-resize" },
+              "top-right": { top: -6, right: -6, cursor: "nesw-resize" },
+              "bottom-left": { bottom: -6, left: -6, cursor: "nesw-resize" },
+              "bottom-right": { bottom: -6, right: -6, cursor: "nwse-resize" },
+            };
+            return (
+              <div
+                key={dir}
+                contentEditable={false}
+                style={{ ...resizerStyle, ...styleMap[dir] }}
+                onMouseDown={createResizerHandler(dir)}
+              />
+            );
+          })}
+        </>
+      )}
+    </div>
+  );
+}
+
+export const ImageRenderer = memo(ImageRendererComponent);
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/renderers.tsx --
+import React from "react";
+import { Descendant, Text } from "slate";
+import { RenderElementProps, RenderLeafProps } from "slate-react";
+import { ImageElement } from "./ImageElement";
+import { ImageViewerEditorLike } from "./ImageViewerEditorLike";
+import type { ImageElementNode } from "./custom-types";
+
+export const EMPTY_VALUE: Descendant[] = [
+  { type: "paragraph", children: [{ text: "" }] },
+];
+
+// =============================
+// Editor Rendering (Editable)
+// =============================
+export function renderLeaf({ attributes, children, leaf }: RenderLeafProps) {
+  if (leaf.bold) children = <strong>{children}</strong>;
+  if (leaf.code) children = <code>{children}</code>;
+  if (leaf.italic) children = <em>{children}</em>;
+  if (leaf.underline) children = <u>{children}</u>;
+  return <span {...attributes}>{children}</span>;
+}
+
+export function renderElement({
+  attributes,
+  children,
+  element,
+}: RenderElementProps) {
+  const style: React.CSSProperties = {};
+  if ("align" in element && element.align) style.textAlign = element.align as any;
+
+  switch (element.type) {
+    case "heading-one":
+      return <h1 style={style} {...attributes}>{children}</h1>;
+    case "heading-two":
+      return <h2 style={style} {...attributes}>{children}</h2>;
+    case "block-quote":
+      return <blockquote className="blockquote" style={style} {...attributes}>{children}</blockquote>;
+    case "blockquote-footer":
+      return <footer className="blockquote-footer" style={style} {...attributes}>{children}</footer>;
+    case "numbered-list":
+      return <ol style={style} {...attributes}>{children}</ol>;
+    case "bulleted-list":
+      return <ul style={style} {...attributes}>{children}</ul>;
+    case "list-item":
+      return <li style={style} {...attributes}>{children}</li>;
+    case "code-block":
+      return (
+        <pre
+          style={{
+            ...style,
+            background: "#f8f9fa",
+            padding: "0.75rem",
+            borderRadius: "0.25rem",
+            overflowX: "auto",
+          }}
+          {...attributes}
+        >
+          <code>{children}</code>
+        </pre>
+      );
+    case "image":
+      return (
+        <figure
+          style={{
+            textAlign: (element as any).align ?? "center",
+            margin: "1em 0",
+          }}
+          {...attributes}
+        >
+          <ImageElement
+            element={element as ImageElementNode}
+            attributes={attributes}
+            isEditing
+          >
+            {children}
+          </ImageElement>
+        </figure>
+      );
+    case "caption":
+      return (
+        <figcaption
+          style={{
+            fontSize: "0.9em",
+            color: "#6c757d",
+            textAlign: "center",
+            marginTop: "0.5em",
+            marginBottom: "1em",
+          }}
+          {...attributes}
+        >
+          {children}
+        </figcaption>
+      );
+    default:
+      return <p style={style} {...attributes}>{children}</p>;
+  }
+}
+
+// =============================
+// Viewer Rendering (Read-only)
+// =============================
+export function renderNode(
+  node: Descendant,
+  key: number,
+  fallbackAlt?: string
+): React.ReactNode {
+  if (Text.isText(node)) {
+    let children: React.ReactNode = node.text;
+    if (node.bold) children = <strong>{children}</strong>;
+    if (node.italic) children = <em>{children}</em>;
+    if (node.underline) children = <u>{children}</u>;
+    if (node.code) children = <code>{children}</code>;
+    return <span key={key}>{children}</span>;
+  }
+
+  const childrenNodes = node.children.map((n, i) =>
+    renderNode(n, i, fallbackAlt)
+  );
+  const style: React.CSSProperties = {};
+  if ("align" in node && node.align) style.textAlign = node.align as any;
+
+  switch (node.type) {
+    case "heading-one":
+      return <h1 key={key} style={style}>{childrenNodes}</h1>;
+    case "heading-two":
+      return <h2 key={key} style={style}>{childrenNodes}</h2>;
+    case "block-quote":
+      return <blockquote key={key} className="blockquote" style={style}>{childrenNodes}</blockquote>;
+    case "blockquote-footer":
+      return <footer key={key} className="blockquote-footer" style={style}>{childrenNodes}</footer>;
+    case "numbered-list":
+      return <ol key={key} style={style}>{childrenNodes}</ol>;
+    case "bulleted-list":
+      return <ul key={key} style={style}>{childrenNodes}</ul>;
+    case "list-item":
+      return <li key={key} style={style}>{childrenNodes}</li>;
+    case "code-block":
+      return (
+        <pre
+          key={key}
+          style={{
+            ...style,
+            background: "#f8f9fa",
+            padding: "0.75rem",
+            borderRadius: "0.25rem",
+            overflowX: "auto",
+          }}
+        >
+          <code>{childrenNodes}</code>
+        </pre>
+      );
+    case "image": {
+      const imgNode = node as ImageElementNode;
+      const captionNode = node.children.find((c: any) => c.type === "caption");
+
+      return (
+        <figure key={key} style={{ textAlign: imgNode.align ?? "center", margin: "1em 0" }}>
+          <ImageViewerEditorLike
+            url={imgNode.url}
+            alt={imgNode.alt || fallbackAlt}
+            width={imgNode.width}
+            height={imgNode.height}
+            align={imgNode.align || "center"}
+          />
+          {captionNode && (
+            <figcaption
+              style={{
+                fontSize: "0.9em",
+                color: "#6c757d",
+                textAlign: "center",
+                marginTop: "0.5em",
+                marginBottom: "1em",
+              }}
+            >
+              {renderNode(captionNode as Descendant, 0, fallbackAlt)}
+            </figcaption>
+          )}
+        </figure>
+      );
+    }
+    case "caption":
+      // Jangan render caption terpisah (sudah di-handle dalam image)
+      return null;
+    default:
+      return <p key={key} style={style}>{childrenNodes}</p>;
+  }
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/withImages.ts --
+// components/wysiwyg/withImages.ts
+import { Transforms, Element as SlateElement } from "slate";
+import type { CustomEditor, ImageElementNode } from "./custom-types";
+
+export const withImages = <T extends CustomEditor>(editor: T): T => {
+  const { normalizeNode } = editor;
+
+  editor.normalizeNode = (entry) => {
+    const [node, path] = entry;
+
+    if (path.length === 0 && editor.children.length === 0) {
+      Transforms.insertNodes(editor, { type: "paragraph", children: [{ text: "" }] });
+      return;
+    }
+
+    // Normalizer khusus image
+    if (SlateElement.isElement(node) && node.type === "image") {
+      const imageNode = node as ImageElementNode;
+
+      // 1) image harus punya tepat 1 text child kosong
+      if (
+        !imageNode.children ||
+        imageNode.children.length !== 1 ||
+        !("text" in imageNode.children[0])
+      ) {
+        Transforms.removeNodes(editor, { at: path });
+        Transforms.insertNodes(
+          editor,
+          {
+            ...imageNode,
+            children: [{ text: "" }],
+          },
+          { at: path }
+        );
+        return;
+      }
+    }
+
+    // fallback ke normalizer asli
+    normalizeNode(entry);
+  };
+
+  return editor;
+};
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/ImageElement.tsx --
+// components/wysiwyg/ImageElement.tsx
+"use client";
+
+import React, { memo, useCallback } from "react";
+import { RenderElementProps, useFocused, useSelected, ReactEditor } from "slate-react";
+import { Transforms } from "slate";
+import { useSlateStatic } from "slate-react";
+import { ImageRenderer, Align } from "./ImageRenderer";
+import type { ImageElementNode } from "./custom-types";
+import { hasCaption, toggleCaption } from "./utils/caption";
+
+interface ImageElementProps extends RenderElementProps {
+  element: ImageElementNode;
+  align?: Align;
+  isEditing?: boolean;
+}
+
+function ImageElementComponent({
+  attributes,
+  children,
+  element,
+  align,
+  isEditing = true,
+}: ImageElementProps) {
+  const editor = useSlateStatic();
+  const selected = useSelected();
+  const focused = useFocused();
+
+  const path = ReactEditor.findPath(editor, element);
+  const currentHasCaption = hasCaption(editor, element);
+
+  const handleRemove = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault();
+      Transforms.removeNodes(editor, { at: path });
+    },
+    [editor, path]
+  );
+
+  const handleEditAlt = useCallback(() => {
+    const newAlt = window.prompt("Enter alt text:", element.alt || "");
+    if (newAlt !== null) {
+      Transforms.setNodes(editor, { alt: newAlt }, { at: path });
+    }
+  }, [editor, element, path]);
+
+  const handleAlign = useCallback(
+    (a: Align) => {
+      Transforms.setNodes(editor, { align: a }, { at: path });
+    },
+    [editor, path]
+  );
+
+  const handleToggleCaption = useCallback(() => {
+    toggleCaption(editor, element);
+  }, [editor, element]);
+
+  return (
+    <div {...attributes} style={{ textAlign: element.align ?? "center" }}>
+      <figure style={{ display: "inline-block", margin: 0 }}>
+        <ImageRenderer
+          url={element.url}
+          alt={element.alt}
+          width={element.width}
+          height={element.height}
+          align={align ?? element.align ?? "center"}
+          isEditing={isEditing}
+          selected={selected}
+          focused={focused}
+          onRemove={handleRemove}
+          onResize={(w, h) => {
+            Transforms.setNodes(editor, { width: w, height: h }, { at: path });
+          }}
+          onEditAlt={handleEditAlt}
+          onAlign={handleAlign}
+          keepAspectRatio
+          onToggleCaption={handleToggleCaption}
+          hasCaption={currentHasCaption}
+        />
+        {children /* dummy text only */}
+      </figure>
+    </div>
+  );
+}
+
+export const ImageElement = memo(ImageElementComponent, (prev, next) =>
+  prev.element === next.element &&
+  prev.align === next.align &&
+  prev.isEditing === next.isEditing
+);
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/components.tsx --
+"use client"
+
+import React from "react"
+import clsx from "clsx"
+
+export const Button = ({
+  className,
+  active,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) => (
+  <button
+    {...props}
+    className={clsx(
+      "btn btn-sm me-1",
+      active ? "btn-primary text-white" : "btn-light border",
+      className
+    )}
+    type="button"
+  />
+)
+
+export const Icon = ({ name }: { name: string }) => (
+  <i className={`bi bi-${name}`} />
+)
+
+export const Toolbar = ({ children }: { children: React.ReactNode }) => (
+  <div className="d-flex flex-wrap mb-2 border rounded p-1 bg-light">
+    {children}
+  </div>
+)
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/RichTextRenderer.tsx --
+// components/wysiwyg/RichTextRenderer.tsx
+"use client";
+
+import React from "react";
+import { Descendant } from "slate";
+import { renderNode } from "./renderers";
+
+interface Props {
+  value: Descendant[];
+}
+
+export default function RichTextRenderer({ value }: Props) {
+  return <div>{value.map((node, i) => renderNode(node, i))}</div>;
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/RichTextEditor.tsx --
+// components/wysiwyg/RichTextEditor.tsx
+"use client";
+
+import isHotkey from "is-hotkey";
+import React, { KeyboardEvent, PointerEvent, useMemo } from "react";
+import { Descendant, Editor, Element as SlateElement, Transforms, createEditor } from "slate";
+import { withHistory } from "slate-history";
+import { Editable, Slate, useSlate, withReact } from "slate-react";
+import { Button, Icon, Toolbar } from "./components";
+import { CustomEditor, CustomElementType, CustomElementWithAlign, CustomTextKey, ImageElementNode, OtherElement } from "./custom-types.d";
+import { renderElement, renderLeaf, EMPTY_VALUE } from "./renderers";
+import { withImages } from "./withImages";
+import { uploadImage } from "../../utils/upload";
+import { SlateDebugger } from "./useDebugSlate";
+
+interface Props {
+  value: Descendant[] | null;
+  onChange: (value: Descendant[]) => void;
+}
+
+const HOTKEYS: Record<string, CustomTextKey> = {
+  "mod+b": "bold",
+  "mod+i": "italic",
+  "mod+u": "underline",
+  "mod+`": "code",
+};
+
+const LIST_TYPES = ["numbered-list", "bulleted-list"] as const;
+const TEXT_ALIGN_TYPES = ["left", "center", "right", "justify"] as const;
+
+type AlignType = (typeof TEXT_ALIGN_TYPES)[number];
+type ListType = (typeof LIST_TYPES)[number];
+type CustomElementFormat = CustomElementType | AlignType | ListType;
+
+// =============================
+// Ikon & Label
+// =============================
+const FORMAT_ICONS: Record<string, string> = {
+  bold: "type-bold",
+  italic: "type-italic",
+  underline: "type-underline",
+  code: "code",
+  "code-block": "code-slash",
+  "heading-one": "type-h1",
+  "heading-two": "type-h2",
+  "block-quote": "quote",
+  "blockquote-footer": "person",
+  "numbered-list": "list-ol",
+  "bulleted-list": "list-ul",
+  left: "text-left",
+  center: "text-center",
+  right: "text-right",
+  justify: "justify",
+  image: "image",
+};
+
+const FORMAT_LABELS: Record<string, string> = {
+  bold: "Bold (Ctrl+B)",
+  italic: "Italic (Ctrl+I)",
+  underline: "Underline (Ctrl+U)",
+  code: "Inline Code (Ctrl+`)",
+  "code-block": "Code Block",
+  "heading-one": "Heading 1",
+  "heading-two": "Heading 2",
+  "block-quote": "Block Quote",
+  "blockquote-footer": "Quote Footer",
+  "numbered-list": "Numbered List",
+  "bulleted-list": "Bulleted List",
+  left: "Align Left",
+  center: "Align Center",
+  right: "Align Right",
+  justify: "Justify",
+  image: "Insert Image",
+};
+
+// =============================
+// Component
+// =============================
+export default function RichTextEditor({ value, onChange }: Props) {
+  const editor = useMemo(() => withImages(withHistory(withReact(createEditor() as CustomEditor))), []);
+
+  const initialValue: Descendant[] =
+    value && value.length > 0 ? value : EMPTY_VALUE;
+
+  return (
+    <Slate editor={editor} initialValue={initialValue} onChange={(val) => {
+      // Jangan pernah izinkan [] lolos keluar
+      onChange(val.length > 0 ? val : EMPTY_VALUE);
+    }}
+    >
+      <SlateDebugger label="RichTextEditor" />
+      <Toolbar>
+        {(["bold", "italic", "underline", "code"] as CustomTextKey[]).map((f) => (
+          <MarkButton key={f} format={f} icon={FORMAT_ICONS[f]} />
+        ))}
+        {(
+          [
+            "heading-one",
+            "heading-two",
+            "block-quote",
+            "blockquote-footer",
+            "code-block",
+            "numbered-list",
+            "bulleted-list",
+            "left",
+            "center",
+            "right",
+            "justify",
+          ] as CustomElementFormat[]
+        ).map((f) => (
+          <BlockButton key={f} format={f} icon={FORMAT_ICONS[f]} />
+        ))}
+        <ImageButton />
+      </Toolbar>
+
+      <div className="border rounded p-2">
+        <Editable
+          renderElement={renderElement}
+          renderLeaf={renderLeaf}
+          placeholder="Tulis konten di sini..."
+          spellCheck
+          autoFocus
+          onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+            for (const hotkey in HOTKEYS) {
+              if (isHotkey(hotkey, event as any)) {
+                event.preventDefault();
+                toggleMark(editor, HOTKEYS[hotkey]);
+              }
+            }
+          }}
+        />
+      </div>
+    </Slate>
+  );
+}
+
+// =============================
+// Utils
+// =============================
+const insertImage = (editor: CustomEditor, url: string, alt: string = "") => {
+  const image: ImageElementNode = {
+    type: "image",
+    url,
+    alt,
+    align: "center",
+    width: undefined,
+    height: undefined,
+    children: [{ text: "" }], // ✅ children minimal
+  };
+  Transforms.insertNodes(editor, image);
+};
+
+const toggleBlock = (editor: CustomEditor, format: CustomElementFormat) => {
+  const isActive = isBlockActive(editor, format, isAlignType(format) ? "align" : "type");
+  const isList = isListType(format);
+  const isQuote = format === "block-quote";
+
+  Transforms.unwrapNodes(editor, {
+    match: (n) =>
+      !Editor.isEditor(n) &&
+      SlateElement.isElement(n) &&
+      isValidBlockType(n.type) &&
+      ((isListType(n.type) || n.type === "block-quote") && !isAlignType(format)),
+    split: true,
+  });
+
+  const newProperties: Partial<SlateElement> = isAlignType(format)
+    ? { align: isActive ? undefined : format }
+    : { type: isActive ? "paragraph" : isList ? "list-item" : format };
+
+  Transforms.setNodes(editor, newProperties);
+
+  if (!isActive && (isList || isQuote) && !isAlignType(format) && isOtherElementType(format)) {
+    const block: OtherElement = { type: format, align: undefined, children: [] };
+    Transforms.wrapNodes(editor, block);
+  }
+};
+
+const toggleMark = (editor: CustomEditor, format: CustomTextKey) => {
+  const isActive = isMarkActive(editor, format);
+  if (isActive) Editor.removeMark(editor, format);
+  else Editor.addMark(editor, format, true);
+};
+
+const isBlockActive = (editor: CustomEditor, format: CustomElementFormat, blockType: "type" | "align" = "type") => {
+  const { selection } = editor;
+  if (!selection) return false;
+
+  const [match] = Array.from(
+    Editor.nodes(editor, {
+      at: Editor.unhangRange(editor, selection),
+      match: (n) => {
+        if (!Editor.isEditor(n) && SlateElement.isElement(n)) {
+          if (blockType === "align" && isAlignElement(n)) {
+            return n.align === format;
+          }
+          return n.type === format;
+        }
+        return false;
+      },
+    })
+  );
+  return !!match;
+};
+
+const isMarkActive = (editor: CustomEditor, format: CustomTextKey) => {
+  const marks = Editor.marks(editor);
+  return marks ? marks[format] === true : false;
+};
+
+// =============================
+// Toolbar Buttons
+// =============================
+const BlockButton = ({ format, icon }: { format: CustomElementFormat; icon: string }) => {
+  const editor = useSlate();
+  return (
+    <Button
+      active={isBlockActive(editor, format, isAlignType(format) ? "align" : "type")}
+      onPointerDown={(e: PointerEvent<HTMLButtonElement>) => e.preventDefault()}
+      onClick={() => toggleBlock(editor, format)}
+      title={FORMAT_LABELS[format]}
+      data-bs-toggle="tooltip"
+    >
+      <Icon name={icon} />
+    </Button>
+  );
+};
+
+const MarkButton = ({ format, icon }: { format: CustomTextKey; icon: string }) => {
+  const editor = useSlate();
+  return (
+    <Button
+      active={isMarkActive(editor, format)}
+      onPointerDown={(e: PointerEvent<HTMLButtonElement>) => e.preventDefault()}
+      onClick={() => toggleMark(editor, format)}
+      title={FORMAT_LABELS[format]}
+      data-bs-toggle="tooltip"
+    >
+      <Icon name={icon} />
+    </Button>
+  );
+};
+
+const ImageButton = () => {
+  const editor = useSlate();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await uploadImage(file);
+      const alt = prompt("Masukkan alt text untuk gambar ini:") || "";
+      insertImage(editor, url, alt);
+    } catch (err: any) {
+      alert(err.message || "Gagal upload gambar");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <>
+      <input
+        type="file"
+        accept="image/*"
+        ref={fileInputRef}
+        style={{ display: "none" }}
+        onChange={handleFileChange}
+      />
+      <Button
+        onPointerDown={(e: PointerEvent<HTMLButtonElement>) => e.preventDefault()}
+        onClick={() => fileInputRef.current?.click()}
+        title={FORMAT_LABELS.image}
+        data-bs-toggle="tooltip"
+      >
+        <Icon name={FORMAT_ICONS.image} />
+      </Button>
+    </>
+  );
+};
+
+// =============================
+// Type Guards
+// =============================
+const isAlignType = (format: CustomElementFormat): format is AlignType =>
+  TEXT_ALIGN_TYPES.includes(format as AlignType);
+
+const isListType = (format: CustomElementFormat): format is ListType =>
+  LIST_TYPES.includes(format as ListType);
+
+const isValidBlockType = (type: string): type is CustomElementFormat =>
+  type !== "caption";
+
+const isAlignElement = (element: any): element is CustomElementWithAlign =>
+  "align" in element && TEXT_ALIGN_TYPES.includes(element.align);
+
+export const isOtherElementType = (format: CustomElementFormat): format is OtherElement["type"] =>
+  ["heading-one", "heading-two", "block-quote", "blockquote-footer", "numbered-list", "bulleted-list", "list-item", "code-block"].includes(format as string);
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/custom-types.d.ts --
+// components/wysiwyg/custom-types.d.ts
+import { BaseEditor, Descendant } from "slate"
+import { ReactEditor } from "slate-react"
+
+export type CustomText = {
+  text: string
+  bold?: boolean
+  italic?: boolean
+  underline?: boolean
+  code?: boolean
+}
+
+export type CustomElementType =
+  | "paragraph"
+  | "heading-one"
+  | "heading-two"
+  | "block-quote"
+  | "blockquote-footer"
+  | "numbered-list"
+  | "bulleted-list"
+  | "list-item"
+  | "image"
+  | "caption"
+  | "code-block"
+
+export interface CustomElementWithAlign {
+  align?: "left" | "center" | "right" | "justify"
+}
+
+export type ParagraphElement = {
+  type: "paragraph"
+  children: Descendant[]
+} & CustomElementWithAlign
+
+export type CaptionElement = {
+  type: "caption"
+  children: { text: string }[]
+}
+
+export type ImageElementNode = {
+  type: "image"
+  url: string
+  alt?: string
+  align?: "left" | "center" | "right"
+  width?: number
+  height?: number
+  children: [{ text: "" }] // wajib ada 1 text kosong
+}
+
+export type OtherElement = {
+  type: Exclude<CustomElementType, "paragraph" | "image">
+  align?: "left" | "center" | "right" | "justify"
+  children: Descendant[]
+}
+
+export type CustomElement =
+  | ParagraphElement
+  | ImageElementNode
+  | OtherElement
+  | CaptionElement
+
+export type CustomEditor = BaseEditor & ReactEditor
+export type CustomTextKey = keyof Omit<CustomText, "text">
+
+declare module "slate" {
+  interface CustomTypes {
+    Editor: CustomEditor
+    Element: CustomElement
+    Text: CustomText
+  }
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/useDebugSlate.ts --
+// components/wysiwyg/SlateDebugger.tsx
+"use client";
+
+import { useEffect } from "react";
+import { useSlateStatic } from "slate-react";
+import { Descendant, Text, Element } from "slate";
+import type { ImageElementNode, CaptionElement } from "./custom-types";
+
+/**
+ * Transformasi node Slate jadi bentuk debug-friendly
+ */
+function simplifyNode(node: Descendant): any {
+  if (Text.isText(node)) {
+    return {
+      text: node.text,
+      bold: (node as any).bold,
+      italic: (node as any).italic,
+      underline: (node as any).underline,
+      code: (node as any).code,
+    };
+  }
+
+  if ("type" in node) {
+    if ((node as any).type === "image") {
+      const img = node as ImageElementNode;
+      return {
+        type: "image",
+        url: img.url,
+        alt: img.alt,
+        width: img.width,
+        height: img.height,
+        align: img.align,
+      };
+    }
+
+    if ((node as any).type === "caption") {
+      const cap = node as CaptionElement;
+      return {
+        type: "caption",
+        text: cap.children.map((c) => ("text" in c ? c.text : "")).join(""),
+      };
+    }
+
+    return {
+      type: (node as any).type,
+      children: "children" in node ? (node as any).children.map(simplifyNode) : [],
+    };
+  }
+
+  return node;
+}
+
+/**
+ * SlateDebugger: log full tree + image + caption sibling info
+ */
+export function SlateDebugger({ label = "SlateValue" }: { label?: string }) {
+  const editor = useSlateStatic();
+
+  useEffect(() => {
+    if (!editor || !editor.children) return;
+
+    const simplified = (editor.children as Descendant[]).map(simplifyNode);
+    console.log(`[${label}] full tree:`, simplified);
+
+    // cek pasangan image + caption sebagai sibling
+    const nodes = editor.children as Element[];
+    const debugImages = nodes
+      .map((n, i) => {
+        if (n.type === "image") {
+          const img = n as ImageElementNode;
+          const next = nodes[i + 1];
+          const caption =
+            next && next.type === "caption"
+              ? (next as CaptionElement).children.map((c) =>
+                "text" in c ? c.text : ""
+              ).join("")
+              : null;
+
+          return {
+            url: img.url,
+            alt: img.alt,
+            width: img.width,
+            height: img.height,
+            align: img.align,
+            caption: caption || "(none)",
+            captionSibling: caption ? "valid (next sibling)" : "no caption",
+          };
+        }
+        return null;
+      })
+      .filter(Boolean);
+
+    console.log(`[${label}] images:`, debugImages);
+  }, [editor.children, label, editor]);
+
+  return null;
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/hooks/useImageResize.ts --
+// components/wysiwyg/hooks/useImageResize.ts
+import { useCallback } from "react"
+import { Transforms } from "slate"
+import { ReactEditor, useSlateStatic } from "slate-react"
+import type { ImageElementNode } from "../custom-types"
+
+export function useImageResize(
+  element: ImageElementNode,
+  keepAspectRatio: boolean = true
+) {
+  const editor = useSlateStatic()
+  const path = ReactEditor.findPath(editor, element)
+
+  const handleResize = useCallback(
+    (newWidth: number, newHeight?: number) => {
+      let finalWidth = newWidth
+      let finalHeight = newHeight ?? element.height
+
+      if (keepAspectRatio && element.width && element.height) {
+        const ratio = element.height / element.width
+        finalHeight = Math.round(finalWidth * ratio)
+      }
+
+      Transforms.setNodes(
+        editor,
+        { width: finalWidth, height: finalHeight },
+        { at: path }
+      )
+
+      return { width: finalWidth, height: finalHeight }
+    },
+    [editor, path, element.width, element.height, keepAspectRatio]
+  )
+
+  return { handleResize }
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/utils/caption.ts --
+// components/wysiwyg/utils/caption.ts
+import { Node, Element, Path, Transforms } from "slate";
+import { ReactEditor } from "slate-react";
+import type { CustomEditor, ImageElementNode, CaptionElement } from "../custom-types";
+
+export function hasCaption(editor: CustomEditor, image: ImageElementNode): boolean {
+  const path = ReactEditor.findPath(editor, image);
+
+  if (path[0] >= editor.children.length - 1) {
+    return false;
+  }
+
+  try {
+    const nextEntry = Node.get(editor, Path.next(path));
+    return Element.isElement(nextEntry) && nextEntry.type === "caption";
+  } catch {
+    return false;
+  }
+}
+
+export function toggleCaption(editor: CustomEditor, image: ImageElementNode) {
+  const path = ReactEditor.findPath(editor, image);
+  const nextPath = Path.next(path);
+
+  if (path[0] >= editor.children.length) return;
+
+  const nextNode = (editor.children as any)[nextPath[0]];
+  if (Element.isElement(nextNode) && nextNode.type === "caption") {
+    // remove caption
+    Transforms.removeNodes(editor, { at: nextPath });
+  } else {
+    // insert caption
+    const captionNode: CaptionElement = {
+      type: "caption",
+      children: [{ text: "" }],
+    };
+    Transforms.insertNodes(editor, captionNode, { at: nextPath });
+  }
+}
+
+
+----------------------------------------
+

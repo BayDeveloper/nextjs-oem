@@ -1,0 +1,225 @@
+
+-- /nextjs_oem_frontend/app/account/metadata.ts --
+// src/app/account/metadata.ts
+import type { Metadata } from "next"
+
+export const accountMetadata: Metadata = {
+  title: "Akun | OEM-X",
+  description: "Kelola akun Anda di OEM-X.",
+  robots: {
+    index: false, // 🚫 jangan diindeks Google
+    follow: false, // 🚫 jangan ikuti link di halaman ini
+  },
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/app/account/page.tsx --
+// src/app/account/page.tsx
+'use client'
+
+import React from 'react'
+import { withAuth } from '../../auth/AuthContext'
+import { ClientOnly } from '../../lib/helpers/ClientOnly'
+import { AccountContent } from './content'
+
+const ProtectedAccount = withAuth(AccountContent)
+
+export default function AccountPage() {
+  return (
+    <ClientOnly>
+      <ProtectedAccount />
+    </ClientOnly>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/app/account/content.tsx --
+// src/app/account/content.tsx
+'use client'
+
+import React from 'react'
+import { useAuth } from '../../auth/AuthContext'
+import { useLogout } from '../../auth/useLogout'
+
+export function AccountContent() {
+  const { user, loading } = useAuth()
+  const { triggerLogout } = useLogout()
+
+  if (loading) {
+    return <p className="container mt-5 text-center">⏳ Memuat data akun…</p>
+  }
+  if (!user) {
+    return (
+      <p className="container mt-5 text-center text-danger">
+        ❌ Gagal memuat akun.
+      </p>
+    )
+  }
+
+  // ✅ casting aman tanpa interface
+  const id = String(user.id ?? '')
+  const email = String(user.email ?? '')
+  const display = String(user.display ?? email ?? 'Pengguna')
+  const role = String(user.role ?? '')
+  const hasPassword = Boolean(user.has_usable_password)
+
+  return (
+    <div className="container mt-5">
+      <h2 className="mb-3">👋 Halo, {display}!</h2>
+      <p>Selamat datang di dashboard akun Anda.</p>
+
+      <div className="mt-4">
+        <h5 className="mb-3">📌 Informasi Akun</h5>
+        <ul className="list-group mb-4">
+          <li className="list-group-item">
+            <strong>ID:</strong> {id}
+          </li>
+          <li className="list-group-item">
+            <strong>Email:</strong> {email}
+          </li>
+          {role && (
+            <li className="list-group-item">
+              <strong>Role:</strong> {role}
+            </li>
+          )}
+          <li className="list-group-item">
+            <strong>Password aktif:</strong> {hasPassword ? '✅ Ya' : '❌ Tidak'}
+          </li>
+        </ul>
+      </div>
+
+      <button
+        onClick={triggerLogout}
+        className="btn btn-outline-danger"
+      >
+        🚪 Logout
+      </button>
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/app/account/layout.tsx --
+// app/account/layout.tsx
+import React from "react"
+import { accountMetadata } from "./metadata"
+
+export const metadata = accountMetadata
+
+export default function AccountLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <div className="container py-5" style={{ maxWidth: "800px" }}>
+      {children}
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/app/account/reauthenticate/page.tsx --
+// src/app/account/reauthenticate/page.tsx
+'use client'
+
+import React from 'react'
+import { withAuth } from '../../../auth/AuthContext'
+import { ReauthenticateContent } from './content'
+import { ClientOnly } from '../../../lib/helpers/ClientOnly'
+
+const Fallback = (
+  <div className="container mt-5" style={{ maxWidth: 480 }}>
+    <h2>Verifikasi Ulang</h2>
+    <form>{/* Placeholder */}</form>
+  </div>
+)
+
+function ReauthenticatePage() {
+  const Protected = withAuth(ReauthenticateContent, '/account/login', Fallback)
+  return <ClientOnly>{<Protected />}</ClientOnly>
+}
+
+export default ReauthenticatePage
+
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/app/account/reauthenticate/content.tsx --
+'use client'
+
+import React, { useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { reauthenticate } from '../../../lib/allauth'
+import { useRequest } from '../../../lib/helpers/useRequest'
+import { mutate } from 'swr'
+
+export function ReauthenticateContent() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const next = searchParams.get('next') || '/'
+
+  const [password, setPassword] = useState('')
+  const { trigger: doReauth, error, loading } = useRequest(reauthenticate)
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const resp = await doReauth({ password })
+
+    if (!resp?.meta?.is_authenticated) return
+
+    // Revalidasi session auth agar fresh
+    await mutate('/auth/session')
+
+    // Redirect ke tujuan semula
+    router.replace(next)
+  }
+
+  return (
+    <div className="container mt-5" style={{ maxWidth: 480 }}>
+      <h2>Verifikasi Ulang</h2>
+      <p>
+        Demi keamanan, masukkan ulang password Anda untuk melanjutkan.
+      </p>
+      <form onSubmit={handleSubmit}>
+        <div className="mb-3">
+          <label htmlFor="password" className="form-label">Password</label>
+          <input
+            id="password"
+            type="password"
+            className="form-control"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            disabled={loading}
+            required
+            autoComplete="current-password"
+          />
+        </div>
+
+        {error && <div className="alert alert-danger">{error}</div>}
+
+        <button type="submit" className="btn btn-primary" disabled={loading || !password}>
+          {loading ? 'Memverifikasi...' : 'Lanjutkan'}
+        </button>
+      </form>
+    </div>
+  )
+}
+
+
+----------------------------------------
+

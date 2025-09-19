@@ -1,0 +1,135 @@
+// blog/components/PostForm.tsx
+"use client"
+
+import React, { useState } from "react"
+import { request } from "../../lib/allauth"
+import type { Post } from "../types"
+import RichTextEditor from "../../components/wysiwyg/RichTextEditor"
+import { Descendant } from "slate"
+
+type Props = {
+  blogId: string
+  bSlug: string
+  initial?: Partial<Post>
+  onSuccess?: (post: Post) => void
+  method?: "POST" | "PATCH" | "PUT"
+}
+
+export default function PostForm({ blogId, bSlug, initial, onSuccess, method }: Props) {
+  const [title, setTitle] = useState(initial?.title ?? "")
+  const [content, setContent] = useState<Descendant[]>(
+    initial?.content
+      ? JSON.parse(initial.content as string)
+      : [{ type: "paragraph", children: [{ text: "" }] }]
+  )
+  const [published, setPublished] = useState(initial?.published ?? false)
+  const [coverImage, setCoverImage] = useState<File | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    try {
+      // content langsung dipakai tanpa cleaning caption
+      const formData = new FormData()
+      formData.append("blog", blogId)
+      formData.append("title", title)
+      formData.append("content", JSON.stringify(content))
+      formData.append("published", String(published))
+      if (coverImage) {
+        formData.append("cover_image", coverImage)
+      }
+
+      let post: Post
+      if (initial?.id) {
+        post = await request<Post>(
+          method ?? "PATCH",
+          `/blog/posts/${initial.id}/`,
+          formData
+        )
+      } else {
+        post = await request<Post>(
+          "POST",
+          "/blog/posts/",
+          formData
+        )
+      }
+      onSuccess?.(post)
+    } catch (err: any) {
+      const msg = err?.detail || err?.message || "Gagal menyimpan post."
+      setError(typeof msg === "string" ? msg : JSON.stringify(msg))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="card" encType="multipart/form-data">
+      <div className="card-body">
+        <div className="mb-3">
+          <label className="form-label">Title</label>
+          <input
+            className="form-control"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            maxLength={255}
+          />
+        </div>
+
+        <div className="mb-3">
+          <label className="form-label">Content</label>
+          <RichTextEditor value={content} onChange={setContent} />
+        </div>
+
+        <div className="mb-3">
+          <label className="form-label">Cover Image</label>
+          <input
+            type="file"
+            className="form-control"
+            accept="image/*"
+            onChange={(e) => setCoverImage(e.target.files?.[0] || null)}
+          />
+          {initial?.cover_image && !coverImage && (
+            <div className="mt-2">
+              <img
+                src={initial.cover_image}
+                alt="Current cover"
+                className="img-fluid rounded"
+                style={{ maxHeight: "200px" }}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="form-check mb-3">
+          <input
+            type="checkbox"
+            className="form-check-input"
+            id="published"
+            checked={published}
+            onChange={(e) => setPublished(e.target.checked)}
+          />
+          <label className="form-check-label" htmlFor="published">
+            Published
+          </label>
+        </div>
+
+        {error && <div className="alert alert-danger">{error}</div>}
+
+        <div className="d-flex gap-2">
+          <button className="btn btn-primary" type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Save"}
+          </button>
+          {initial?.id && (
+            <a href={`/admin/blog/${blogId}/${bSlug}`} className="btn btn-outline-secondary">
+              Cancel
+            </a>
+          )}
+        </div>
+      </div>
+    </form>
+  )
+}

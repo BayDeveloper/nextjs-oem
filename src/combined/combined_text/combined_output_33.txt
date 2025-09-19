@@ -1,0 +1,361 @@
+
+-- /nextjs_oem_frontend/components/wysiwyg/components.tsx --
+"use client"
+
+import React from "react"
+import clsx from "clsx"
+
+export const Button = ({
+  className,
+  active,
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { active?: boolean }) => (
+  <button
+    {...props}
+    className={clsx(
+      "btn btn-sm me-1",
+      active ? "btn-primary text-white" : "btn-light border",
+      className
+    )}
+    type="button"
+  />
+)
+
+export const Icon = ({ name }: { name: string }) => (
+  <i className={`bi bi-${name}`} />
+)
+
+export const Toolbar = ({ children }: { children: React.ReactNode }) => (
+  <div className="d-flex flex-wrap mb-2 border rounded p-1 bg-light">
+    {children}
+  </div>
+)
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/RichTextRenderer.tsx --
+// components/wysiwyg/RichTextRenderer.tsx
+"use client";
+
+import React from "react";
+import { Descendant } from "slate";
+import { renderNode } from "./renderers";
+
+interface Props {
+  value: Descendant[];
+}
+
+export default function RichTextRenderer({ value }: Props) {
+  return <div>{value.map((node, i) => renderNode(node, i))}</div>;
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/wysiwyg/RichTextEditor.tsx --
+// components/wysiwyg/RichTextEditor.tsx
+"use client";
+
+import isHotkey from "is-hotkey";
+import React, { KeyboardEvent, PointerEvent, useMemo } from "react";
+import { Descendant, Editor, Element as SlateElement, Transforms, createEditor } from "slate";
+import { withHistory } from "slate-history";
+import { Editable, Slate, useSlate, withReact } from "slate-react";
+import { Button, Icon, Toolbar } from "./components";
+import { CustomEditor, CustomElementType, CustomElementWithAlign, CustomTextKey, ImageElementNode, OtherElement } from "./custom-types.d";
+import { renderElement, renderLeaf, EMPTY_VALUE } from "./renderers";
+import { withImages } from "./withImages";
+import { uploadImage } from "../../utils/upload";
+import { SlateDebugger } from "./useDebugSlate";
+
+interface Props {
+  value: Descendant[] | null;
+  onChange: (value: Descendant[]) => void;
+}
+
+const HOTKEYS: Record<string, CustomTextKey> = {
+  "mod+b": "bold",
+  "mod+i": "italic",
+  "mod+u": "underline",
+  "mod+`": "code",
+};
+
+const LIST_TYPES = ["numbered-list", "bulleted-list"] as const;
+const TEXT_ALIGN_TYPES = ["left", "center", "right", "justify"] as const;
+
+type AlignType = (typeof TEXT_ALIGN_TYPES)[number];
+type ListType = (typeof LIST_TYPES)[number];
+type CustomElementFormat = CustomElementType | AlignType | ListType;
+
+// =============================
+// Ikon & Label
+// =============================
+const FORMAT_ICONS: Record<string, string> = {
+  bold: "type-bold",
+  italic: "type-italic",
+  underline: "type-underline",
+  code: "code",
+  "code-block": "code-slash",
+  "heading-one": "type-h1",
+  "heading-two": "type-h2",
+  "block-quote": "quote",
+  "blockquote-footer": "person",
+  "numbered-list": "list-ol",
+  "bulleted-list": "list-ul",
+  left: "text-left",
+  center: "text-center",
+  right: "text-right",
+  justify: "justify",
+  image: "image",
+};
+
+const FORMAT_LABELS: Record<string, string> = {
+  bold: "Bold (Ctrl+B)",
+  italic: "Italic (Ctrl+I)",
+  underline: "Underline (Ctrl+U)",
+  code: "Inline Code (Ctrl+`)",
+  "code-block": "Code Block",
+  "heading-one": "Heading 1",
+  "heading-two": "Heading 2",
+  "block-quote": "Block Quote",
+  "blockquote-footer": "Quote Footer",
+  "numbered-list": "Numbered List",
+  "bulleted-list": "Bulleted List",
+  left: "Align Left",
+  center: "Align Center",
+  right: "Align Right",
+  justify: "Justify",
+  image: "Insert Image",
+};
+
+// =============================
+// Component
+// =============================
+export default function RichTextEditor({ value, onChange }: Props) {
+  const editor = useMemo(() => withImages(withHistory(withReact(createEditor() as CustomEditor))), []);
+
+  const initialValue: Descendant[] =
+    value && value.length > 0 ? value : EMPTY_VALUE;
+
+  return (
+    <Slate editor={editor} initialValue={initialValue} onChange={(val) => {
+      // Jangan pernah izinkan [] lolos keluar
+      onChange(val.length > 0 ? val : EMPTY_VALUE);
+    }}
+    >
+      <SlateDebugger label="RichTextEditor" />
+      <Toolbar>
+        {(["bold", "italic", "underline", "code"] as CustomTextKey[]).map((f) => (
+          <MarkButton key={f} format={f} icon={FORMAT_ICONS[f]} />
+        ))}
+        {(
+          [
+            "heading-one",
+            "heading-two",
+            "block-quote",
+            "blockquote-footer",
+            "code-block",
+            "numbered-list",
+            "bulleted-list",
+            "left",
+            "center",
+            "right",
+            "justify",
+          ] as CustomElementFormat[]
+        ).map((f) => (
+          <BlockButton key={f} format={f} icon={FORMAT_ICONS[f]} />
+        ))}
+        <ImageButton />
+      </Toolbar>
+
+      <div className="border rounded p-2">
+        <Editable
+          renderElement={renderElement}
+          renderLeaf={renderLeaf}
+          placeholder="Tulis konten di sini..."
+          spellCheck
+          autoFocus
+          onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+            for (const hotkey in HOTKEYS) {
+              if (isHotkey(hotkey, event as any)) {
+                event.preventDefault();
+                toggleMark(editor, HOTKEYS[hotkey]);
+              }
+            }
+          }}
+        />
+      </div>
+    </Slate>
+  );
+}
+
+// =============================
+// Utils
+// =============================
+const insertImage = (editor: CustomEditor, url: string, alt: string = "") => {
+  const image: ImageElementNode = {
+    type: "image",
+    url,
+    alt,
+    align: "center",
+    width: undefined,
+    height: undefined,
+    children: [{ text: "" }], // ✅ children minimal
+  };
+  Transforms.insertNodes(editor, image);
+};
+
+const toggleBlock = (editor: CustomEditor, format: CustomElementFormat) => {
+  const isActive = isBlockActive(editor, format, isAlignType(format) ? "align" : "type");
+  const isList = isListType(format);
+  const isQuote = format === "block-quote";
+
+  Transforms.unwrapNodes(editor, {
+    match: (n) =>
+      !Editor.isEditor(n) &&
+      SlateElement.isElement(n) &&
+      isValidBlockType(n.type) &&
+      ((isListType(n.type) || n.type === "block-quote") && !isAlignType(format)),
+    split: true,
+  });
+
+  const newProperties: Partial<SlateElement> = isAlignType(format)
+    ? { align: isActive ? undefined : format }
+    : { type: isActive ? "paragraph" : isList ? "list-item" : format };
+
+  Transforms.setNodes(editor, newProperties);
+
+  if (!isActive && (isList || isQuote) && !isAlignType(format) && isOtherElementType(format)) {
+    const block: OtherElement = { type: format, align: undefined, children: [] };
+    Transforms.wrapNodes(editor, block);
+  }
+};
+
+const toggleMark = (editor: CustomEditor, format: CustomTextKey) => {
+  const isActive = isMarkActive(editor, format);
+  if (isActive) Editor.removeMark(editor, format);
+  else Editor.addMark(editor, format, true);
+};
+
+const isBlockActive = (editor: CustomEditor, format: CustomElementFormat, blockType: "type" | "align" = "type") => {
+  const { selection } = editor;
+  if (!selection) return false;
+
+  const [match] = Array.from(
+    Editor.nodes(editor, {
+      at: Editor.unhangRange(editor, selection),
+      match: (n) => {
+        if (!Editor.isEditor(n) && SlateElement.isElement(n)) {
+          if (blockType === "align" && isAlignElement(n)) {
+            return n.align === format;
+          }
+          return n.type === format;
+        }
+        return false;
+      },
+    })
+  );
+  return !!match;
+};
+
+const isMarkActive = (editor: CustomEditor, format: CustomTextKey) => {
+  const marks = Editor.marks(editor);
+  return marks ? marks[format] === true : false;
+};
+
+// =============================
+// Toolbar Buttons
+// =============================
+const BlockButton = ({ format, icon }: { format: CustomElementFormat; icon: string }) => {
+  const editor = useSlate();
+  return (
+    <Button
+      active={isBlockActive(editor, format, isAlignType(format) ? "align" : "type")}
+      onPointerDown={(e: PointerEvent<HTMLButtonElement>) => e.preventDefault()}
+      onClick={() => toggleBlock(editor, format)}
+      title={FORMAT_LABELS[format]}
+      data-bs-toggle="tooltip"
+    >
+      <Icon name={icon} />
+    </Button>
+  );
+};
+
+const MarkButton = ({ format, icon }: { format: CustomTextKey; icon: string }) => {
+  const editor = useSlate();
+  return (
+    <Button
+      active={isMarkActive(editor, format)}
+      onPointerDown={(e: PointerEvent<HTMLButtonElement>) => e.preventDefault()}
+      onClick={() => toggleMark(editor, format)}
+      title={FORMAT_LABELS[format]}
+      data-bs-toggle="tooltip"
+    >
+      <Icon name={icon} />
+    </Button>
+  );
+};
+
+const ImageButton = () => {
+  const editor = useSlate();
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const url = await uploadImage(file);
+      const alt = prompt("Masukkan alt text untuk gambar ini:") || "";
+      insertImage(editor, url, alt);
+    } catch (err: any) {
+      alert(err.message || "Gagal upload gambar");
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  return (
+    <>
+      <input
+        type="file"
+        accept="image/*"
+        ref={fileInputRef}
+        style={{ display: "none" }}
+        onChange={handleFileChange}
+      />
+      <Button
+        onPointerDown={(e: PointerEvent<HTMLButtonElement>) => e.preventDefault()}
+        onClick={() => fileInputRef.current?.click()}
+        title={FORMAT_LABELS.image}
+        data-bs-toggle="tooltip"
+      >
+        <Icon name={FORMAT_ICONS.image} />
+      </Button>
+    </>
+  );
+};
+
+// =============================
+// Type Guards
+// =============================
+const isAlignType = (format: CustomElementFormat): format is AlignType =>
+  TEXT_ALIGN_TYPES.includes(format as AlignType);
+
+const isListType = (format: CustomElementFormat): format is ListType =>
+  LIST_TYPES.includes(format as ListType);
+
+const isValidBlockType = (type: string): type is CustomElementFormat =>
+  type !== "caption";
+
+const isAlignElement = (element: any): element is CustomElementWithAlign =>
+  "align" in element && TEXT_ALIGN_TYPES.includes(element.align);
+
+export const isOtherElementType = (format: CustomElementFormat): format is OtherElement["type"] =>
+  ["heading-one", "heading-two", "block-quote", "blockquote-footer", "numbered-list", "bulleted-list", "list-item", "code-block"].includes(format as string);
+
+
+----------------------------------------
+

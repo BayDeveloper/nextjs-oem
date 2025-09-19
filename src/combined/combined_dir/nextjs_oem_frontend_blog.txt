@@ -1,0 +1,732 @@
+
+-- /nextjs_oem_frontend/blog/types.ts --
+// blog/types.ts
+export interface Blog {
+  id: number
+  title: string
+  slug: string
+  description?: string
+  owner: number
+  owner_email: string
+  created_at: string
+}
+
+export interface BlogRole {
+  value: "admin" | "editor" | "author"
+  label: string
+}
+
+export interface Membership {
+  id: number
+  blog: number
+  user: number
+  user_email: string
+  role: string
+  role_display: string
+  added_at: string
+}
+
+export interface Post {
+  id: number
+  blog: number
+  title: string
+  slug: string
+  content: string
+  cover_image?: string   // ✅ baru, optional (karena bisa null/blank di backend)
+  published: boolean
+  published_at?: string
+  created_at: string
+  updated_at: string
+  author: number
+  author_email: string
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/blog/hooks/useMemberships.ts --
+"use client"
+
+import useSWR from "swr"
+import { request } from "../../lib/allauth"
+import { Membership } from "../types"
+
+type PaginatedResponse<T> = {
+  count: number
+  next: string | null
+  previous: string | null
+  results: T[]
+}
+
+export function useMemberships(blogId: string | number) {
+  const { data, error, isLoading, mutate } = useSWR<
+    Membership[] | PaginatedResponse<Membership>
+  >(
+    blogId ? `/blog/memberships/?blog=${blogId}` : null,
+    (url: string) =>
+      request<Membership[] | PaginatedResponse<Membership>>("GET", url) // ✅ kasih generic
+  )
+
+  const memberships =
+    Array.isArray(data) ? data : data?.results ?? []
+
+  return {
+    memberships,
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/blog/hooks/useBlogs.ts --
+// blog/hooks/useBlogs.ts
+"use client"
+
+import useSWR from "swr"
+import { request } from "../../lib/allauth"
+import { Blog } from "../types"
+
+export function useBlogs() {
+  const { data, error, isLoading, mutate } = useSWR(
+    "/blog/blogs/",
+    async (url: string) => {
+      const res = await request<any>("GET", url)
+      return Array.isArray(res) ? res : res?.results ?? []
+    }
+  )
+
+  return {
+    blogs: (data as Blog[]) ?? [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/blog/hooks/useBlogRoles.ts --
+"use client"
+
+import useSWR from "swr"
+import { request } from "../../lib/allauth"
+
+export interface BlogRole {
+  value: "admin" | "editor" | "author"
+  label: string
+}
+
+/**
+ * Fetch daftar role blog (untuk dropdown UI).
+ */
+export function useBlogRoles() {
+  const { data, error, isLoading, mutate } = useSWR<BlogRole[]>(
+    "/blog/roles/",
+    (url: string) => request<BlogRole[]>("GET", url),   // ✅ fixed
+    { revalidateOnFocus: false }
+  )
+
+  return {
+    roles: data ?? [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/blog/hooks/usePosts.ts --
+// blog/hooks/usePosts.ts
+"use client"
+
+import useSWR from "swr"
+import { request } from "../../lib/allauth"
+import { Post } from "../types"
+
+export function usePosts(blogId: string) {
+  const { data, error, isLoading, mutate } = useSWR<Post[]>(
+    `/blog/posts/?blog=${blogId}`,
+    async (url: string) => {
+      const res = await request<any>("GET", url)
+      // Normalisasi supaya selalu array
+      return Array.isArray(res) ? res : res?.results ?? []
+    }
+  )
+
+  return {
+    posts: data ?? [],   // ✅ dijamin array
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/blog/components/AddMembershipForm.tsx --
+// blog/components/AddMembershipForm.tsx
+"use client"
+
+import React, { useState } from "react"
+import { request } from "../../lib/allauth"
+
+export default function AddMembershipForm({ blogId, onAdded }: { blogId: string, onAdded: () => void }) {
+  const [email, setEmail] = useState("")
+  const [role, setRole] = useState("author")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+    try {
+      await request("POST", "/blog/memberships/add_by_email/", { blog: blogId, email: email, role })
+      setEmail("")
+      setRole("author")
+      onAdded() // refresh memberships
+    } catch (err: any) {
+      setError(err?.data?.detail || "Gagal menambah member")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="d-flex gap-2 mb-3">
+      <input
+        type="email"
+        className="form-control"
+        placeholder="Email member"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        required
+      />
+      <select className="form-select" value={role} onChange={(e) => setRole(e.target.value)}>
+        <option value="author">Author</option>
+        <option value="editor">Editor</option>
+        <option value="admin">Admin</option>
+      </select>
+      <button className="btn btn-primary" disabled={loading}>
+        {loading ? "Adding..." : "Add"}
+      </button>
+      {error && <div className="text-danger">{error}</div>}
+    </form>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/blog/components/BlogRoleSelect.tsx --
+"use client"
+
+import React from "react"
+import { useBlogRoles } from "../hooks/useBlogRoles"
+
+interface Props {
+  value: string
+  onChange: (val: string) => void
+}
+
+export default function BlogRoleSelect({ value, onChange }: Props) {
+  const { roles, isLoading, isError } = useBlogRoles()
+
+  if (isLoading) return <p>Loading roles...</p>
+  if (isError) return <p>Gagal load roles</p>
+
+  return (
+    <select
+      className="form-select"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+    >
+      {roles.map((r) => (
+        <option key={r.value} value={r.value}>
+          {r.label}
+        </option>
+      ))}
+    </select>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/blog/components/PostList.tsx --
+// blog/components/PostList.tsx
+"use client"
+
+import Link from "next/link"
+import { usePosts } from "../hooks/usePosts"
+import { request } from "../../lib/allauth"
+import React from "react"
+
+interface PostListProps {
+  blogId: string,
+  slug: string
+}
+
+export default function PostList({ blogId, slug }: PostListProps) {
+  const { posts, isLoading, isError, mutate } = usePosts(blogId)
+
+  async function handleDelete(postId: number) {
+    await request("DELETE", `/blog/posts/${postId}/`)
+    mutate()
+  }
+
+  if (isLoading) return <p>Loading posts...</p>
+  if (isError) return <p>Gagal memuat posts</p>
+
+  return (
+    <div>
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h2 className="h4">Posts</h2>
+        <Link href={`/admin/blog/${blogId}/${slug}/posts/new`} className="btn btn-primary btn-sm">
+          + New Post
+        </Link>
+      </div>
+
+      {!posts || posts.length === 0 ? (
+        <p className="text-muted">Belum ada post.</p>
+      ) : (
+        <table className="table table-striped align-middle">
+          <thead>
+            <tr>
+              <th>Judul</th>
+              <th>Author</th>
+              <th>Status</th>
+              <th>Dibuat</th>
+              <th style={{ width: "180px" }}>Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(posts ?? []).map((p) => (
+              <tr key={p.id}>
+                <td>
+                  <Link
+                    href={`/admin/blog/${blogId}/${slug}/posts/${p.id}`}
+                    className="text-decoration-none"
+                  >
+                    {p.title}
+                  </Link>
+                </td>
+                <td>{p.author_email}</td>
+                <td>
+                  {p.published ? (
+                    <span className="badge bg-success">Published</span>
+                  ) : (
+                    <span className="badge bg-secondary">Draft</span>
+                  )}
+                </td>
+                <td>{new Date(p.created_at).toLocaleString("id-ID")}</td>
+                <td>
+                  <div className="btn-group btn-group-sm" role="group">
+                    <Link
+                      href={`/admin/blog/${blogId}/${slug}/posts/${p.id}/view`}
+                      className="btn btn-outline-secondary"
+                    >
+                      View
+                    </Link>
+                    <Link
+                      href={`/admin/blog/${blogId}/${slug}/posts/${p.id}`}
+                      className="btn btn-outline-primary"
+                    >
+                      Edit
+                    </Link>
+                    <button
+                      className="btn btn-outline-danger"
+                      onClick={() => handleDelete(p.id)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/blog/components/PostForm.tsx --
+// blog/components/PostForm.tsx
+"use client"
+
+import React, { useState } from "react"
+import { request } from "../../lib/allauth"
+import type { Post } from "../types"
+import RichTextEditor from "../../components/wysiwyg/RichTextEditor"
+import { Descendant } from "slate"
+
+type Props = {
+  blogId: string
+  bSlug: string
+  initial?: Partial<Post>
+  onSuccess?: (post: Post) => void
+  method?: "POST" | "PATCH" | "PUT"
+}
+
+export default function PostForm({ blogId, bSlug, initial, onSuccess, method }: Props) {
+  const [title, setTitle] = useState(initial?.title ?? "")
+  const [content, setContent] = useState<Descendant[]>(
+    initial?.content
+      ? JSON.parse(initial.content as string)
+      : [{ type: "paragraph", children: [{ text: "" }] }]
+  )
+  const [published, setPublished] = useState(initial?.published ?? false)
+  const [coverImage, setCoverImage] = useState<File | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    try {
+      // content langsung dipakai tanpa cleaning caption
+      const formData = new FormData()
+      formData.append("blog", blogId)
+      formData.append("title", title)
+      formData.append("content", JSON.stringify(content))
+      formData.append("published", String(published))
+      if (coverImage) {
+        formData.append("cover_image", coverImage)
+      }
+
+      let post: Post
+      if (initial?.id) {
+        post = await request<Post>(
+          method ?? "PATCH",
+          `/blog/posts/${initial.id}/`,
+          formData
+        )
+      } else {
+        post = await request<Post>(
+          "POST",
+          "/blog/posts/",
+          formData
+        )
+      }
+      onSuccess?.(post)
+    } catch (err: any) {
+      const msg = err?.detail || err?.message || "Gagal menyimpan post."
+      setError(typeof msg === "string" ? msg : JSON.stringify(msg))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="card" encType="multipart/form-data">
+      <div className="card-body">
+        <div className="mb-3">
+          <label className="form-label">Title</label>
+          <input
+            className="form-control"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            maxLength={255}
+          />
+        </div>
+
+        <div className="mb-3">
+          <label className="form-label">Content</label>
+          <RichTextEditor value={content} onChange={setContent} />
+        </div>
+
+        <div className="mb-3">
+          <label className="form-label">Cover Image</label>
+          <input
+            type="file"
+            className="form-control"
+            accept="image/*"
+            onChange={(e) => setCoverImage(e.target.files?.[0] || null)}
+          />
+          {initial?.cover_image && !coverImage && (
+            <div className="mt-2">
+              <img
+                src={initial.cover_image}
+                alt="Current cover"
+                className="img-fluid rounded"
+                style={{ maxHeight: "200px" }}
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="form-check mb-3">
+          <input
+            type="checkbox"
+            className="form-check-input"
+            id="published"
+            checked={published}
+            onChange={(e) => setPublished(e.target.checked)}
+          />
+          <label className="form-check-label" htmlFor="published">
+            Published
+          </label>
+        </div>
+
+        {error && <div className="alert alert-danger">{error}</div>}
+
+        <div className="d-flex gap-2">
+          <button className="btn btn-primary" type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Save"}
+          </button>
+          {initial?.id && (
+            <a href={`/admin/blog/${blogId}/${bSlug}`} className="btn btn-outline-secondary">
+              Cancel
+            </a>
+          )}
+        </div>
+      </div>
+    </form>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/blog/components/MembershipTable.tsx --
+"use client"
+
+import React from "react"
+import { useParams } from "next/navigation"
+import AddMembershipForm from "./AddMembershipForm"
+import { useMemberships } from "../hooks/useMemberships"
+import BlogRoleSelect from "./BlogRoleSelect"
+import { request } from "../../lib/allauth"
+
+function RoleBadge({ role }: { role: string }) {
+  const colors: Record<string, string> = {
+    admin: "badge bg-danger",
+    editor: "badge bg-primary",
+    author: "badge bg-success",
+    reader: "badge bg-secondary",
+  }
+  return <span className={colors[role] || "badge bg-light"}>{role}</span>
+}
+
+export default function MembershipTable() {
+  const { id } = useParams()
+  const blogId = id as string
+  const { memberships, isLoading, isError, mutate } = useMemberships(blogId)
+
+  async function handleRoleChange(membershipId: number, newRole: string) {
+    await request("PATCH", `/blog/memberships/${membershipId}/`, { role: newRole })
+    mutate()
+  }
+
+  async function handleRemove(membershipId: number) {
+    await request("DELETE", `/blog/memberships/${membershipId}/`)
+    mutate()
+  }
+
+  if (isLoading) return <p>Loading memberships...</p>
+  if (isError) return <p className="text-danger">Gagal memuat membership</p>
+
+  return (
+    <div>
+      <AddMembershipForm blogId={blogId} onAdded={mutate} />
+
+      <table className="table table-hover mt-3">
+        <thead className="table-light">
+          <tr>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Added At</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {memberships.map((m) => (
+            <tr key={m.id}>
+              <td>{m.user_email}</td>
+              <td>
+                <RoleBadge role={m.role} />
+              </td>
+              <td>{new Date(m.added_at).toLocaleString("id-ID", {
+                dateStyle: "medium",
+                timeStyle: "short",
+              })}</td>
+              <td>
+                <div className="d-flex gap-2">
+                  <BlogRoleSelect
+                    value={m.role}
+                    onChange={(val) => handleRoleChange(m.id, val)}
+                  />
+                  <button
+                    className="btn btn-sm btn-outline-danger"
+                    onClick={() => handleRemove(m.id)}
+                  >
+                    Hapus
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/blog/components/BlogForm.tsx --
+// blog/components/BlogForm.tsx
+"use client"
+
+import React, { useState } from "react"
+import { request } from "../../lib/allauth"
+import type { Blog } from "../types"
+
+type Props = {
+  initial?: Partial<Blog>
+  onSuccess?: (blog: Blog) => void
+  method?: "POST" | "PATCH" | "PUT"
+}
+
+export default function BlogForm({ initial, onSuccess, method }: Props) {
+  const [title, setTitle] = useState(initial?.title ?? "")
+  const [description, setDescription] = useState(initial?.description ?? "")
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setSubmitting(true)
+    setError(null)
+    try {
+      let blog: Blog
+      if (initial?.id) {
+        blog = await request<Blog>(
+          method ?? "PATCH",
+          `/blog/blogs/${initial.id}/`,
+          { title, description }
+        )
+      } else {
+        blog = await request<Blog>(
+          "POST",
+          "/blog/blogs/",
+          { title, description }
+        )
+      }
+      onSuccess?.(blog)
+    } catch (err: any) {
+      const msg = err?.detail || err?.message || "Gagal menyimpan blog."
+      setError(typeof msg === "string" ? msg : JSON.stringify(msg))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="card">
+      <div className="card-body">
+        <div className="mb-3">
+          <label className="form-label">Title</label>
+          <input
+            className="form-control"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+            maxLength={255}
+          />
+        </div>
+
+        <div className="mb-3">
+          <label className="form-label">Description</label>
+          <textarea
+            className="form-control"
+            rows={4}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </div>
+
+        {error && <div className="alert alert-danger">{error}</div>}
+
+        <div className="d-flex gap-2">
+          <button className="btn btn-primary" type="submit" disabled={submitting}>
+            {submitting ? "Saving..." : "Save"}
+          </button>
+          {initial?.id && (
+            <a href={`/admin/blog/${initial.id}/${initial.slug}/`} className="btn btn-outline-secondary">
+              Cancel
+            </a>
+          )}
+        </div>
+      </div>
+    </form>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/blog/components/BlogList.tsx --
+// blog/components/BlogList.tsx
+"use client"
+
+import React from "react"
+import Link from "next/link"
+import { useBlogs } from "../hooks/useBlogs"
+
+export default function BlogList() {
+  const { blogs, isLoading, isError } = useBlogs()
+
+  if (isLoading) return <p>Loading blogs...</p>
+  if (isError) return <p>Gagal memuat blogs</p>
+
+  return (
+    <div>
+      <h2 className="h4 mb-3">Blogs</h2>
+      <ul className="list-group">
+        {blogs.map((b) => (
+          // di dalam <li> pada BlogList
+          <li key={b.id} className="list-group-item d-flex justify-content-between align-items-center">
+            <div>
+              <Link href={`/admin/blog/${b.id}/${b.slug}`}>{b.title} | {b.slug}</Link>
+              <span className="text-muted ms-2">Owner: {b.owner_email}</span>
+            </div>
+            <div className="btn-group">
+              <Link href={`/admin/blog/${b.id}/${b.slug}/memberships`} className="btn btn-sm btn-outline-secondary">Members</Link>
+              <Link href={`/admin/blog/${b.id}/${b.slug}/edit`} className="btn btn-sm btn-outline-primary">Edit</Link>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+
+----------------------------------------
+

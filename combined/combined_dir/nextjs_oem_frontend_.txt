@@ -1,0 +1,240 @@
+
+-- /nextjs_oem_frontend/next-env.d.ts --
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+/// <reference path="./.next/types/routes.d.ts" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/next-sitemap.config.js --
+/** @type {import('next-sitemap').IConfig} */
+module.exports = {
+  siteUrl: "https://oem-x.my.id",
+  generateRobotsTxt: true,
+  sitemapSize: 5000,
+  exclude: [
+    "/_allauth/*",
+    "/api/*",
+    "/drf/*",
+    "/ninja/*",
+    "/account/*",   // 🚫 jangan index halaman akun
+    "/admin/*",     // 🚫 jangan index halaman admin
+    "/blog/not-found",
+  ],
+  robotsTxtOptions: {
+    policies: [
+      {
+        userAgent: "*",
+        allow: ["/blog", "/blog/*"], // ✅ blog publik tetap boleh
+        disallow: [
+          "/_allauth",
+          "/api",
+          "/drf",
+          "/ninja",
+          "/account",
+          "/admin",
+          "/blog/not-found",
+        ],
+      },
+    ],
+    additionalSitemaps: [
+      "https://oem-x.my.id/sitemap.xml",        // default sitemap
+      "https://oem-x.my.id/server-sitemap.xml", // bisa untuk backend (jika ada)
+    ],
+  },
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/.gitignore --
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/package.json --
+{
+  "name": "nextjs-oem",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --turbopack",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "bootstrap": "^5.3.7",
+    "bootstrap-icons": "^1.13.1",
+    "clsx": "^2.1.1",
+    "html-react-parser": "^5.2.6",
+    "next": "^15.5.2",
+    "next-sitemap": "^4.2.3",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "slate": "^0.118.1",
+    "slate-history": "^0.113.1",
+    "slate-hyperscript": "^0.100.0",
+    "slate-react": "^0.117.4",
+    "swr": "^2.3.4"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3",
+    "@types/node": "^20",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "eslint": "^9",
+    "eslint-config-next": "15.3.4",
+    "typescript": "^5.8.3"
+  }
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/next.config.js --
+// next.config.js
+module.exports = {
+  headers: async () => [
+    {
+      source: '/_next/static/(.*)',
+      headers: [
+        {
+          key: 'Cache-Control',
+          value: 'no-store'
+        }
+      ]
+    }
+  ]
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/tsconfig.json --
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    "src/types"
+  ],
+  "exclude": ["node_modules"]
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/next.config.ts --
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+
+module.exports = {
+  allowedDevOrigins: ['project.localhost', '*.project.localhost'],
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/eslint.config.mjs --
+import { dirname } from "path";
+import { fileURLToPath } from "url";
+import { FlatCompat } from "@eslint/eslintrc";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+});
+
+const eslintConfig = [
+  ...compat.extends("next/core-web-vitals", "next/typescript"),
+];
+
+export default eslintConfig;
+
+
+----------------------------------------
+

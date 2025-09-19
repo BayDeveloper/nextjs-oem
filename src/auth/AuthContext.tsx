@@ -1,0 +1,294 @@
+"use client"
+
+import React, {
+  createContext,
+  useContext,
+  ReactNode,
+  JSX,
+  useEffect,
+} from 'react'
+import useSWR from 'swr'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
+import { ConfigType, fetchCSRFToken, fetchConfig, getAuth } from '../lib/allauth'
+import { useRecentlyReauthenticated } from '../utils/reauth'
+
+interface Flow {
+  id: string
+  is_pending?: boolean
+  types?: string[]
+  providers?: string[]
+  [key: string]: unknown
+}
+
+interface Method {
+  method: string
+  at: number
+  reauthenticated?: boolean
+  [key: string]: unknown
+}
+
+export interface AuthContextType {
+  isAuthenticated: boolean
+  user: Record<string, unknown> | null
+  flows: Flow[]
+  providers: string[]
+  methods: Method[]
+  tokens: {
+    session_token?: string
+    access_token?: string
+  }
+  loading: boolean
+  lastReauthenticatedAt: string | null
+}
+
+const defaultAuth: AuthContextType = {
+  isAuthenticated: false,
+  user: null,
+  flows: [],
+  providers: [],
+  methods: [],
+  tokens: {},
+  loading: true,
+  lastReauthenticatedAt: null,
+}
+
+const AuthContext = createContext<AuthContextType>(defaultAuth)
+const ConfigContext = createContext<ConfigType | null>(null)
+
+interface AuthProviderProps {
+  children: ReactNode
+  initialAuth?: AuthContextType
+  initialConfig?: ConfigType | null
+}
+
+const fetchAuth = async (): Promise<AuthContextType> => {
+  await fetchCSRFToken()
+  const resp = await getAuth()
+
+  if (resp.status === 401 || !resp.meta?.is_authenticated) {
+    console.warn('[fetchAuth] Tidak terautentikasi')
+    return defaultAuth
+  }
+
+  const data = resp.data ?? {}
+  const meta = resp.meta ?? {}
+
+  console.log('[fetchAuth] response:', resp)
+
+  const flows = (data.flows ?? []) as Flow[]
+  const providers =
+    flows.find((f) => f.id === 'provider_redirect')?.providers ?? []
+
+  return {
+    isAuthenticated: meta.is_authenticated ?? false,
+    user: data.user ?? null,
+    flows,
+    providers,
+    methods: (data.methods ?? []) as Method[],
+    tokens: {
+      session_token: meta.session_token,
+      access_token: meta.access_token,
+    },
+    loading: false,
+    lastReauthenticatedAt: typeof meta.last_reauthenticated_at === 'string'
+      ? meta.last_reauthenticated_at
+      : null,
+  }
+}
+
+export function AuthProvider({
+  children,
+  initialAuth,
+  initialConfig,
+}: AuthProviderProps) {
+  const {
+    data: auth = initialAuth ?? defaultAuth,
+    isLoading: authLoading,
+  } = useSWR<AuthContextType>('/auth/session', fetchAuth, {
+    fallbackData: initialAuth,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    dedupingInterval: 60000,
+    revalidateOnMount: false,
+    revalidateIfStale: false,
+  })
+
+  const {
+    data: config,
+    isLoading: configLoading,
+    error: configError,
+  } = useSWR<ConfigType | null>('/auth/config', fetchConfig, {
+    fallbackData: initialConfig ?? null,
+    revalidateOnFocus: false,
+    revalidateOnReconnect: false,
+    revalidateIfStale: false,
+    revalidateOnMount: false,
+    dedupingInterval: 300000,
+  })
+
+  useEffect(() => {
+    if (configError) {
+      console.error('[AuthContext] Gagal memuat config:', configError)
+      console.log('[AuthProvider] config result:', config)
+    }
+  }, [configError, config])
+
+  if (authLoading || configLoading) {
+    return <div className="text-center p-5">Memuat konfigurasi auth...</div>
+  }
+
+  const value: AuthContextType = {
+    ...auth,
+    loading: authLoading,
+  }
+
+  return (
+    <AuthContext.Provider value={value}>
+      <ConfigContext.Provider value={config ?? null}>
+        {children}
+      </ConfigContext.Provider>
+    </AuthContext.Provider>
+  )
+}
+
+export function useAuth(): AuthContextType {
+  return useContext(AuthContext)
+}
+
+export function useConfig(): ConfigType | null {
+  return useContext(ConfigContext)
+}
+
+export function useAuthenticatedRoute(redirectTo = '/account/login') {
+  const { isAuthenticated, loading } = useAuth()
+  useEffect(() => {
+    if (!loading && !isAuthenticated) {
+      const next = window.location.pathname + window.location.search
+      window.location.href = `${redirectTo}?next=${encodeURIComponent(next)}`
+    }
+  }, [loading, isAuthenticated, redirectTo])
+}
+
+export function useAnonymousRoute(redirectTo = '/') {
+  const { isAuthenticated, loading } = useAuth()
+  const router = useRouter()
+  const params = useSearchParams()
+
+  useEffect(() => {
+    if (!loading && isAuthenticated) {
+      const next = params.get('next')
+      router.replace(next ?? redirectTo)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, isAuthenticated, params, router])
+}
+
+interface WithAuthOptions {
+  redirectTo?: string; // default: '/account/login'
+  role?: string;       // opsional, untuk cek role
+}
+
+export function withAuth<T extends JSX.IntrinsicAttributes>(
+  Component: React.ComponentType<T>,
+  options?: WithAuthOptions,
+  Fallback: React.ReactNode = <div>Memuat...</div>
+) {
+  const redirectTo = options?.redirectTo || '/account/login';
+
+  return function Wrapped(props: T) {
+    const { isAuthenticated, loading, user } = useAuth();
+    const params = useSearchParams();
+    const pathname = usePathname();
+
+    useEffect(() => {
+      if (!loading) {
+        // Belum login
+        if (!isAuthenticated) {
+          const next = params.get('next') || pathname;
+          window.location.href = `${redirectTo}?next=${encodeURIComponent(next)}`;
+        }
+        // Sudah login tapi role tidak sesuai
+        else if (options?.role && user?.role !== options.role) {
+          window.location.href = '/403'; // halaman forbidden
+        }
+      }
+    }, [loading, isAuthenticated, user, params, pathname]);
+
+    // Tampilkan fallback saat loading
+    if (loading) return <>{Fallback}</>;
+
+    // Kalau user belum login atau role tidak cocok, jangan render apa-apa
+    if (!isAuthenticated || (options?.role && user?.role !== options.role)) {
+      return null;
+    }
+
+    // Kalau lolos semua cek, render komponen
+    return <Component {...props} />;
+  };
+}
+
+
+export function withAnonymous<T extends JSX.IntrinsicAttributes>(
+  Component: React.ComponentType<T>,
+  redirectTo = '/account'
+) {
+  return function Wrapped(props: T) {
+    const { isAuthenticated, loading } = useAuth()
+    const params = useSearchParams()
+    const router = useRouter()
+
+    useEffect(() => {
+      if (!loading && isAuthenticated) {
+        const next = params.get('next')
+        router.replace(next ?? redirectTo)
+      }
+    }, [loading, isAuthenticated, params, router])
+
+    if (loading || isAuthenticated) return null
+    return <Component {...props} />
+  }
+}
+
+export function withReauth<T extends JSX.IntrinsicAttributes>(
+  Component: React.ComponentType<T>,
+  redirectTo = '/account/reauthenticate',
+  Fallback: React.ReactNode = <div>Memuat halaman aman...</div>
+) {
+  return function Wrapped(props: T) {
+    const { isAuthenticated, loading } = useAuth()
+    const router = useRouter()
+    const pathname = usePathname()
+    const searchParams = useSearchParams()
+
+    const isValidReauth = useRecentlyReauthenticated()
+
+    const isOnReauthPage = pathname.startsWith(redirectTo)
+
+    // Buat URL lengkap termasuk query string (jika ada)
+    const currentPath =
+      pathname + (searchParams.toString() ? `?${searchParams.toString()}` : '')
+
+    useEffect(() => {
+      // ✅ Jika user login tapi belum reauth (dan bukan di halaman reauth), redirect
+      if (!loading && isAuthenticated && !isValidReauth && !isOnReauthPage) {
+        const next = searchParams.get('next') || currentPath
+        router.replace(`${redirectTo}?next=${encodeURIComponent(next)}`)
+      }
+    }, [
+      loading,
+      isAuthenticated,
+      isValidReauth,
+      isOnReauthPage,
+      searchParams,
+      currentPath,
+      router,
+    ])
+
+    // ⏳ Tampilkan fallback jika belum siap
+    if (loading || !isAuthenticated || (!isValidReauth && !isOnReauthPage)) {
+      return <>{Fallback}</>
+    }
+
+    return <Component {...props} />
+  }
+}

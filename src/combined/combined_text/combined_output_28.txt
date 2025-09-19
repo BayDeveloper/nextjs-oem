@@ -1,0 +1,178 @@
+
+-- /nextjs_oem_frontend/components/ConfigLoader.tsx --
+'use client'
+
+import React, { useEffect } from 'react'
+import { useConfig } from '../auth/AuthContext'
+import { isConfigReady } from '../utils/isConfigReady'
+
+interface ConfigLoaderProps {
+  children: React.ReactNode
+  fallback?: React.ReactNode
+}
+
+export default function ConfigLoader({
+  children,
+  fallback = <DefaultConfigFallback />,
+}: ConfigLoaderProps) {
+  const config = useConfig()
+
+  useEffect(() => {
+    console.log('[ConfigLoader] config:', config)
+    if (!isConfigReady(config)) {
+      console.warn('[ConfigLoader] config belum siap:', config)
+      console.log('[ConfigLoader] config:', config)
+      console.log('[ConfigLoader] isReady:', isConfigReady(config))
+    }
+  }, [config])
+
+  if (!isConfigReady(config)) {
+    return fallback
+  }
+
+  return <>{children}</>
+}
+
+function DefaultConfigFallback() {
+  return (
+    <div className="text-center my-5">
+      <div className="spinner-border text-primary" role="status" />
+      <p className="mt-3">Memuat konfigurasi...</p>
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/Spinner.tsx --
+// src/components/Spinner.tsx
+import React from 'react'
+
+interface SpinnerProps {
+  small?: boolean
+  className?: string
+}
+
+export default function Spinner({ small = false, className = '' }: SpinnerProps) {
+  const sizeClass = small ? 'spinner-border-sm' : 'spinner-border'
+  return (
+    <div className={`spinner ${sizeClass} ${className}`} role="status">
+      <span className="visually-hidden">Loading...</span>
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/ProviderList.tsx --
+'use client'
+
+import React from "react"
+import { useConfig } from '../auth/AuthContext'
+import { redirectToProvider, settings, Client, AuthProcess } from '../lib/allauth'
+
+
+type Props = {
+  callbackURL: string
+  process?: 'login' | 'connect'
+}
+
+export default function ProviderList({ callbackURL, process = AuthProcess.LOGIN }: Props) {
+  const config = useConfig()
+  const providers = config?.socialaccount?.providers || []
+
+  if (!providers.length) return null
+
+  return (
+    <>
+      {settings.client === Client.BROWSER && (
+        <ul className="list-unstyled">
+          {providers.map(provider => (
+            <li key={provider.id} className="mb-2">
+              <button
+                onClick={() => redirectToProvider(provider.id, callbackURL, process)}
+                className="btn btn-outline-secondary w-100"
+              >
+                Login dengan {provider.name ?? provider.id}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/BootstrapInit.tsx --
+// components/BootstrapInit.tsx
+"use client";
+
+import { useEffect } from "react";
+
+export default function BootstrapInit() {
+  useEffect(() => {
+    // Import bootstrap bundle JS di client
+    import("bootstrap/dist/js/bootstrap.bundle.min.js").then((bootstrap) => {
+      // Setelah bundle siap, aktifkan semua tooltip
+      const tooltipTriggerList = Array.from(
+        document.querySelectorAll('[data-bs-toggle="tooltip"]')
+      );
+      tooltipTriggerList.forEach(
+        (el) => new bootstrap.Tooltip(el as HTMLElement)
+      );
+    });
+  }, []);
+
+  return null;
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/NavbarWrapper.tsx --
+'use client'
+
+import React from 'react'
+import dynamic from 'next/dynamic'
+
+// ✅ Import Navbar dynamically with SSR off
+const Navbar = dynamic(() => import('./Navbar'), { ssr: false })
+
+export default function NavbarWrapper() {
+  return <Navbar />
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/components/AppWrapper.tsx --
+// src/components/AppWrapper.tsx
+'use client'
+
+import React from 'react'
+import { SWRConfig } from 'swr'
+import { csrfMiddleware } from '../auth/csrfMiddleware'
+
+export default function AppWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <SWRConfig value={{
+      use: [csrfMiddleware],
+    }}>
+      {children}
+    </SWRConfig>
+  )
+}
+
+
+----------------------------------------
+

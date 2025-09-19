@@ -1,0 +1,148 @@
+
+-- /nextjs_oem_frontend/src/app/admin/blog/[id]/[slug]/posts/[postId]/view/page.tsx --
+// app/admin/blog/[id]/[slug]/posts/[postId]/view/page.tsx
+"use client"
+
+import React from "react"
+import { useParams, useRouter } from "next/navigation"
+import useSWR from "swr"
+import { request } from "../../../../../../../../lib/allauth"
+import type { Post } from "../../../../../../../../blog/types"
+import Link from "next/link"
+
+import PostCover from "./PostCover"
+import PostContentViewer from "./PostContentViewer"
+
+// =============================
+// SWR fetcher
+// =============================
+const fetchPost = (url: string) => request<Post>("GET", url)
+
+interface ViewPostPageProps {
+  fallbackData: Post // optional pre-fetched data
+}
+
+export default function ViewPostPage({ fallbackData }: ViewPostPageProps) {
+  const { id, slug, postId } = useParams()
+  const blogId = id as string
+  const bSlug = slug as string
+  const router = useRouter()
+
+  // =============================
+  // SWR fetch
+  // =============================
+  const { data, error, isLoading } = useSWR<Post>(
+    postId ? `/blog/posts/${postId}/` : null,
+    fetchPost,
+    { fallbackData }
+  )
+
+  if (isLoading) return <div className="container py-4">Loading...</div>
+  if (error) return <div className="container py-4 text-danger">Gagal memuat data.</div>
+  if (!data) return <div className="container py-4">Post tidak ditemukan.</div>
+
+  // =============================
+  // Parse content JSON aman
+  // =============================
+  let nodes: any[] = []
+  if (data.content) {
+    try {
+      nodes = JSON.parse(data.content as unknown as string)
+    } catch (e) {
+      console.error("Invalid content JSON", e)
+    }
+  }
+
+  return (
+    <div className="container py-4">
+      <h1 className="mb-4">{data.title}</h1>
+
+      {data.cover_image && (
+        <PostCover src={data.cover_image} alt={data.title || "Cover image"} />
+      )}
+
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <div className="btn-group">
+          <Link
+            href={`/admin/blog/${blogId}/${bSlug}/posts/${postId}`}
+            className="btn btn-sm btn-primary"
+          >
+            Edit
+          </Link>
+          <button className="btn btn-sm btn-secondary" onClick={() => router.back()}>
+            Back
+          </button>
+        </div>
+      </div>
+
+      <PostContentViewer nodes={nodes} fallbackAlt={data.title || undefined} />
+
+      <hr />
+      <p className="text-muted small">
+        Created: {new Date(data.created_at).toLocaleString()} <br />
+        Updated: {new Date(data.updated_at).toLocaleString()}
+      </p>
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/src/app/admin/blog/[id]/[slug]/posts/[postId]/view/PostCover.tsx --
+// app/admin/blog/[id]/[slug]/posts/[postId]/view/PostCover.tsx
+"use client"
+
+import React from "react"
+
+interface PostCoverProps {
+  src?: string | null
+  alt?: string
+}
+
+export default function PostCover({ src, alt }: PostCoverProps) {
+  if (!src) return null
+
+  return (
+    <div className="mb-4 text-center">
+      <img
+        src={src}
+        alt={alt || "Cover image"}
+        className="img-fluid rounded shadow-sm"
+        style={{ maxHeight: 420, objectFit: "cover", width: "100%" }}
+      />
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/src/app/admin/blog/[id]/[slug]/posts/[postId]/view/PostContentViewer.tsx --
+// app/admin/blog/[id]/[slug]/posts/[postId]/view/PostContentViewer.tsx
+"use client"
+
+import React from "react"
+import { Descendant } from "slate"
+import { renderNode } from "../../../../../../../../components/wysiwyg/renderers"
+
+interface PostContentViewerProps {
+  nodes: Descendant[]
+  fallbackAlt?: string
+}
+
+export default function PostContentViewer({ nodes, fallbackAlt }: PostContentViewerProps) {
+  if (!nodes || nodes.length === 0) return <p>No content</p>
+
+  return (
+    <div className="post-content">
+      {nodes.map((node, i) => renderNode(node, i, fallbackAlt))}
+    </div>
+  )
+}
+
+
+----------------------------------------
+

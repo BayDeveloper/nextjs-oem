@@ -1,0 +1,283 @@
+
+-- /nextjs_oem_frontend/app/admin/AdminClientWrapper.tsx --
+// src/app/admin/AdminClientWrapper.tsx
+"use client"
+
+import React from "react"
+import dynamic from "next/dynamic"
+
+const BootstrapInit = dynamic(() => import("../../components/BootstrapInit"), {
+  ssr: false,
+})
+
+export default function AdminClientWrapper({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <>
+      {children}
+      <BootstrapInit />
+    </>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/app/admin/hooks/useUsers.ts --
+"use client"
+
+import useSWR from "swr"
+import { request } from "../../../lib/allauth"
+
+export interface User {
+  id: number
+  email: string
+  role: string
+}
+
+export function useUsers() {
+  const { data, error, isLoading, mutate } = useSWR<User[]>(
+    "/accounts/users-roles/",
+    (url: string) => request<User[]>("GET", url)
+  )
+
+  return {
+    users: data ?? [],
+    isLoading,
+    isError: !!error,
+    mutate,
+  }
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/app/admin/invitations/page.tsx --
+// app/admin/invitations/page.tsx
+'use client';
+
+import React, { useState } from 'react';
+import useSWR from 'swr';
+import { withAuth } from '../../../auth/AuthContext';
+import { useRequest } from '../../../lib/helpers/useRequest';
+import {
+  listEmailRequests,
+  listInvitations,
+  createInvitation,
+  deleteInvitation,
+  deleteEmailRequest,
+  resendInvitation,
+} from '../../../lib/allauth';
+
+// Types
+type EmailRequest = { id: number; email: string };
+type Invitation = {
+  id: number;
+  email: string;
+  token: string;
+  invited_by: string;
+  expires_at: string;
+};
+
+// SWR fetchers
+const fetchEmailRequests = async (): Promise<EmailRequest[]> => {
+  const res = await listEmailRequests();
+  return (res as any).results || (res as any);
+};
+
+const fetchInvitations = async (): Promise<Invitation[]> => {
+  const res = await listInvitations();
+  return (res as any).results || (res as any);
+};
+
+// Helper buat copy link
+const INVITATION_PATH = '/account/invitation/';
+const copyInvitationLink = (token: string) => {
+  const link = `${window.location.origin}${INVITATION_PATH}${token}`;
+  navigator.clipboard.writeText(link).then(() => {
+    alert(`Link undangan sudah disalin:\n${link}`);
+  });
+};
+
+function AdminInvitationsPage() {
+  const [manualEmail, setManualEmail] = useState('');
+
+  const { data: emailRequests, mutate: mutateEmailReqs } = useSWR<EmailRequest[]>(
+    '/invitations/email-requests',
+    fetchEmailRequests
+  );
+  const { data: invitations, mutate: mutateInvitations } = useSWR<Invitation[]>(
+    '/invitations/list',
+    fetchInvitations
+  );
+
+  // Actions
+  const { trigger: sendInvitation, loadingId: sendingId } = useRequest(
+    async (email: string, requestId?: number) => {
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      await createInvitation({ email, expires_at: expiresAt });
+      await mutateEmailReqs();
+      await mutateInvitations();
+    },
+    { idIndex: 1 }
+  );
+
+  const { trigger: resend, loadingId: resendingId } = useRequest(
+    async (id: number) => {
+      await resendInvitation(id);
+      await mutateInvitations();
+    },
+    { idIndex: 0 }
+  );
+
+  const { trigger: removeRequest, loadingId: removingReqId } = useRequest(
+    async (id: number) => {
+      if (confirm('Hapus permintaan email ini?')) {
+        await deleteEmailRequest(id);
+        await mutateEmailReqs();
+      }
+    },
+    { idIndex: 0 }
+  );
+
+  const { trigger: removeInvitation, loadingId: removingInvId } = useRequest(
+    async (id: number) => {
+      if (confirm('Hapus undangan ini?')) {
+        await deleteInvitation(id);
+        await mutateInvitations();
+      }
+    },
+    { idIndex: 0 }
+  );
+
+  const { trigger: sendManual, loadingId: manualLoading } = useRequest(
+    async (email: string) => {
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      await createInvitation({ email, expires_at: expiresAt });
+      await mutateInvitations();
+    },
+    { idIndex: 0 }
+  );
+
+  if (!emailRequests || !invitations) return <p>Loading...</p>;
+
+  return (
+    <div className="container mt-5">
+      <h1 className="mb-4">Dashboard Undangan (Admin)</h1>
+
+      {/* Form manual */}
+      <section className="mb-5">
+        <h2>Kirim Undangan Manual</h2>
+        <form
+          className="d-flex gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (manualEmail) {
+              sendManual(manualEmail);
+              setManualEmail('');
+            }
+          }}
+        >
+          <input
+            type="email"
+            className="form-control"
+            placeholder="Masukkan email"
+            value={manualEmail}
+            onChange={(e) => setManualEmail(e.target.value)}
+            required
+          />
+          <button className="btn btn-primary" disabled={manualLoading !== null}>
+            {manualLoading ? 'Mengirim...' : 'Kirim'}
+          </button>
+        </form>
+      </section>
+
+      {/* Email Requests */}
+      <section className="mb-5">
+        <h2>Email Requests</h2>
+        {emailRequests.length === 0 && <p>Tidak ada permintaan.</p>}
+        <ul className="list-group">
+          {emailRequests.map((req) => (
+            <li
+              key={req.id}
+              className="list-group-item d-flex justify-content-between align-items-center"
+            >
+              {req.email}
+              <div>
+                <button
+                  className="btn btn-sm btn-success me-2"
+                  disabled={sendingId === req.id}
+                  onClick={() => sendInvitation(req.email, req.id)}
+                >
+                  {sendingId === req.id ? 'Mengirim...' : 'Kirim Undangan'}
+                </button>
+                <button
+                  className="btn btn-sm btn-danger"
+                  disabled={removingReqId === req.id}
+                  onClick={() => removeRequest(req.id)}
+                >
+                  {removingReqId === req.id ? 'Menghapus...' : 'Hapus'}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Invitations */}
+      <section>
+        <h2>Invitations</h2>
+        {invitations.length === 0 && <p>Tidak ada undangan aktif.</p>}
+        <ul className="list-group">
+          {invitations.map((inv) => (
+            <li
+              key={inv.id}
+              className="list-group-item d-flex justify-content-between align-items-center"
+            >
+              <span>
+                {inv.email} - Expires:{' '}
+                {new Intl.DateTimeFormat('id-ID', {
+                  dateStyle: 'medium',
+                  timeStyle: 'short',
+                }).format(new Date(inv.expires_at))}
+              </span>
+              <div>
+                <button
+                  className="btn btn-sm btn-secondary me-2"
+                  onClick={() => copyInvitationLink(inv.token)}
+                >
+                  Salin Link
+                </button>
+                <button
+                  className="btn btn-sm btn-warning me-2"
+                  disabled={resendingId === inv.id}
+                  onClick={() => resend(inv.id)}
+                >
+                  {resendingId === inv.id ? 'Mengirim...' : 'Kirim Ulang'}
+                </button>
+                <button
+                  className="btn btn-sm btn-danger"
+                  disabled={removingInvId === inv.id}
+                  onClick={() => removeInvitation(inv.id)}
+                >
+                  {removingInvId === inv.id ? 'Menghapus...' : 'Hapus'}
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+export default withAuth(AdminInvitationsPage);
+
+
+----------------------------------------
+

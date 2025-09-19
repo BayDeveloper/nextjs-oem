@@ -1,0 +1,179 @@
+// components/wysiwyg/ImageBase.tsx
+"use client";
+
+import React, { useRef, useState, useEffect, useCallback } from "react";
+import type { Align } from "./ImageRenderer";
+
+export interface ImageBaseProps {
+  url: string;
+  alt?: string;
+  width?: number;
+  height?: number;
+  align?: Align;
+  isEditing?: boolean;
+  selected?: boolean;
+  focused?: boolean;
+  children?: React.ReactNode;
+  className?: string;
+  style?: React.CSSProperties;
+  onRemove?: (e: React.MouseEvent) => void;
+  onResize?: (newWidth: number, newHeight: number) => void;
+  onEditAlt?: () => void;
+  onAlign?: (align: Align) => void;
+  keepAspectRatio?: boolean;
+  onToggleCaption?: () => void;
+  hasCaption?: boolean;
+}
+
+export function ImageBase({
+  url,
+  alt,
+  width,
+  height,
+  align = "center",
+  isEditing = false,
+  selected = false,
+  focused = false,
+  children,
+  className,
+  style,
+  onRemove,
+  onResize: _onResize,
+  onEditAlt,
+  onAlign,
+  onToggleCaption,
+  hasCaption,
+}: ImageBaseProps) {
+  const imgRef = useRef<HTMLImageElement>(null);
+  const [internalSize, setInternalSize] = useState<{ w?: number; h?: number }>({
+    w: width,
+    h: height,
+  });
+
+  useEffect(() => {
+    if (imgRef.current && (!internalSize.w || !internalSize.h)) {
+      setInternalSize({
+        w: width ?? imgRef.current.naturalWidth,
+        h: height ?? imgRef.current.naturalHeight,
+      });
+    }
+  }, [width, height, internalSize.w, internalSize.h]);
+
+  const displayW = width ?? internalSize.w;
+  const displayH = height ?? internalSize.h;
+
+  const handleLoad = useCallback(() => {
+    if (imgRef.current && (!internalSize.w || !internalSize.h)) {
+      setInternalSize({
+        w: width ?? imgRef.current.naturalWidth,
+        h: height ?? imgRef.current.naturalHeight,
+      });
+    }
+  }, [width, height, internalSize.w, internalSize.h]);
+
+  const containerStyle: React.CSSProperties = {
+    display: "block",
+    textAlign: align,
+    ...style,
+  };
+
+  return (
+    <div contentEditable={false} style={containerStyle}>
+      <div style={{ position: "relative", display: "inline-block", width: displayW }}>
+        <img
+          ref={imgRef}
+          src={url}
+          alt={alt ?? ""}
+          onLoad={handleLoad}
+          style={{
+            width: displayW ? `${displayW}px` : "auto",
+            height: displayH ? `${displayH}px` : "auto",
+            display: "inline-block",
+            boxShadow: isEditing && selected && focused ? "0 0 0 2px #0d6efd" : undefined,
+            transition: "box-shadow 0.2s",
+          }}
+          className={className}
+        />
+
+        {isEditing && selected && focused && (
+          <div
+            contentEditable={false}
+            style={{
+              position: "absolute",
+              top: 2,
+              right: 2,
+              display: "flex",
+              gap: 2,
+              background: "rgba(255,255,255,0.8)",
+              padding: 2,
+              borderRadius: 2,
+              zIndex: 30,
+            }}
+          >
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onEditAlt?.();
+              }}
+              style={{ fontSize: 10 }}
+            >
+              Alt
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onAlign?.("left");
+              }}
+              style={{ fontSize: 10, fontWeight: align === "left" ? "bold" : undefined }}
+            >
+              ◀
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onAlign?.("center");
+              }}
+              style={{ fontSize: 10, fontWeight: align === "center" ? "bold" : undefined }}
+            >
+              ●
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onAlign?.("right");
+              }}
+              style={{ fontSize: 10, fontWeight: align === "right" ? "bold" : undefined }}
+            >
+              ▶
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                console.log("[ImageBase] Caption button clicked. hasCaption:", hasCaption);
+                onToggleCaption?.();
+              }}
+              style={{
+                fontSize: 10,
+                fontWeight: hasCaption ? "bold" : undefined,
+                color: hasCaption ? "#0d6efd" : undefined,
+              }}
+            >
+              C
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                onRemove?.(e);
+              }}
+              style={{ fontSize: 10, color: "red" }}
+            >
+              X
+            </button>
+          </div>
+        )}
+      </div>
+
+      {children && <div>{children}</div>}
+    </div>
+  );
+}

@@ -1,0 +1,146 @@
+
+-- /nextjs_oem_frontend/src/components/wysiwyg/ImageRenderer.tsx --
+// components/wysiwyg/ImageRenderer.tsx
+"use client";
+
+import React, { useState, useCallback, memo } from "react";
+import { ImageBase, ImageBaseProps } from "./ImageBase";
+
+export type Align = "left" | "center" | "right";
+type ResizeDir = "top-left" | "top-right" | "bottom-left" | "bottom-right";
+
+interface ImageRendererProps extends ImageBaseProps {
+  keepAspectRatio?: boolean;
+  onRemove?: (e: React.MouseEvent) => void;
+  onResize?: (newWidth: number, newHeight: number) => void;
+  onEditAlt?: () => void;
+  onAlign?: (align: Align) => void;
+}
+
+function ImageRendererComponent({
+  keepAspectRatio = true,
+  onResize,
+  ...baseProps
+}: ImageRendererProps) {
+  const [size, setSize] = useState<{ w?: number; h?: number }>({
+    w: baseProps.width ?? 200,
+    h: baseProps.height ?? 200,
+  });
+  const aspectRatio = size.w && size.h ? size.w / size.h : 1;
+
+  const createResizerHandler = useCallback(
+    (dir: ResizeDir) => (e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!size.w || !size.h) return;
+
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startW = size.w;
+      const startH = size.h;
+      const prevUserSelect = document.body.style.userSelect;
+      document.body.style.userSelect = "none";
+
+      const onMove = (ev: MouseEvent) => {
+        let newW =
+          startW +
+          (dir.includes("right")
+            ? ev.clientX - startX
+            : dir.includes("left")
+              ? startX - ev.clientX
+              : 0);
+        let newH =
+          startH +
+          (dir.includes("bottom")
+            ? ev.clientY - startY
+            : dir.includes("top")
+              ? startY - ev.clientY
+              : 0);
+
+        if (keepAspectRatio && !ev.shiftKey && newW > 0)
+          newH = newW / aspectRatio;
+
+        newW = Math.max(50, Math.round(newW));
+        newH = Math.max(50, Math.round(newH));
+
+        setSize({ w: newW, h: newH });
+        onResize?.(newW, newH);
+      };
+
+      const onUp = () => {
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+        document.body.style.userSelect = prevUserSelect || "";
+      };
+
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    },
+    [size.w, size.h, aspectRatio, keepAspectRatio, onResize]
+  );
+
+  const resizerStyle: React.CSSProperties = {
+    position: "absolute",
+    width: 12,
+    height: 12,
+    background: "#fff",
+    border: "2px solid #0d6efd",
+    borderRadius: 2,
+    userSelect: "none",
+    zIndex: 40,
+    pointerEvents: "auto",
+    touchAction: "none",
+  };
+
+  return (
+    <div
+      contentEditable={false}
+      style={{
+        position: "relative",
+        display: "inline-block",
+        outline:
+          baseProps.selected && baseProps.focused
+            ? "2px solid #0d6efd"
+            : "none",
+      }}
+    >
+      <ImageBase
+        {...baseProps}
+        width={size.w}
+        height={size.h}
+        isEditing={baseProps.isEditing}
+        onToggleCaption={baseProps.onToggleCaption} // forward
+        hasCaption={baseProps.hasCaption}           // forward
+      />
+
+      {baseProps.isEditing && baseProps.selected && baseProps.focused && (
+        <>
+          {(
+            ["top-left", "top-right", "bottom-left", "bottom-right"] as ResizeDir[]
+          ).map((dir) => {
+            const styleMap: Record<ResizeDir, React.CSSProperties> = {
+              "top-left": { top: -6, left: -6, cursor: "nwse-resize" },
+              "top-right": { top: -6, right: -6, cursor: "nesw-resize" },
+              "bottom-left": { bottom: -6, left: -6, cursor: "nesw-resize" },
+              "bottom-right": { bottom: -6, right: -6, cursor: "nwse-resize" },
+            };
+            return (
+              <div
+                key={dir}
+                contentEditable={false}
+                style={{ ...resizerStyle, ...styleMap[dir] }}
+                onMouseDown={createResizerHandler(dir)}
+              />
+            );
+          })}
+        </>
+      )}
+    </div>
+  );
+}
+
+export const ImageRenderer = memo(ImageRendererComponent);
+
+
+----------------------------------------
+

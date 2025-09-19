@@ -1,0 +1,175 @@
+
+-- /nextjs_oem_frontend/app/admin/users/roles/page.tsx --
+"use client"
+
+import { useUsers } from "../../hooks/useUsers"
+import { request } from "../../../../lib/allauth"
+import { useState } from "react"
+import React from "react"
+
+const roles = ["customer", "staff", "manager", "admin"]
+
+export default function UserListPage() {
+  const { users, isLoading, isError, mutate } = useUsers()
+  const [savingId, setSavingId] = useState<number | null>(null)
+
+  if (isError) return <div className="alert alert-danger">Gagal memuat user.</div>
+  if (isLoading) return <div className="text-center p-4">Memuat...</div>
+
+  async function handleRoleChange(userId: number, newRole: string) {
+    setSavingId(userId)
+    try {
+      await request("PATCH", `/accounts/users-roles/${userId}/`, { role: newRole })
+      await mutate() // refresh list user
+    } catch (err: any) {
+      console.error("Gagal update role:", err)
+      alert(err?.data?.detail || "Gagal mengubah role")
+    } finally {
+      setSavingId(null)
+    }
+  }
+
+  return (
+    <div className="container py-4">
+      <h1 className="mb-4">User Roles Management</h1>
+      <table className="table table-bordered align-middle">
+        <thead className="table-light">
+          <tr>
+            <th>ID</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          {users.map((user) => (
+            <tr key={user.id}>
+              <td>{user.id}</td>
+              <td>{user.email}</td>
+              <td>
+                <select
+                  className="form-select"
+                  value={user.role}
+                  onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                  disabled={savingId === user.id}
+                >
+                  {roles.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </td>
+              <td>
+                {savingId === user.id ? (
+                  <span className="text-muted">Menyimpan...</span>
+                ) : (
+                  <button
+                    className="btn btn-sm btn-primary"
+                    onClick={() => handleRoleChange(user.id, user.role)}
+                  >
+                    Simpan
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+
+----------------------------------------
+
+
+-- /nextjs_oem_frontend/app/admin/users/status/page.tsx --
+"use client"
+
+import { useState } from "react"
+import useSWR from "swr"
+import { request } from "../../../../lib/allauth"
+import React from "react"
+
+interface User {
+  id: number
+  email: string
+  role: string
+  is_active: boolean
+  is_staff: boolean
+  is_superuser: boolean
+}
+
+export default function UserPermissionPage() {
+  const { data: users, mutate } = useSWR<User[]>("/accounts/user-status/", url =>
+    request<User[]>("GET", url)
+  )
+  const [saving, setSaving] = useState<number | null>(null)
+
+  if (!users) return <div>Loading...</div>
+
+  async function toggleFlag(user: User, field: keyof User) {
+    setSaving(user.id)
+    await request("PATCH", `/accounts/user-status/${user.id}/`, {
+      [field]: !user[field],
+    })
+    await mutate()
+    setSaving(null)
+  }
+
+  return (
+    <div className="container py-4">
+      <h1 className="mb-4">User Status Management</h1>
+      <div className="table-responsive">
+        <table className="table table-bordered table-hover align-middle">
+          <thead className="table-light">
+            <tr>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Active</th>
+              <th>Staff</th>
+              <th>Superuser</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map(u => (
+              <tr key={u.id}>
+                <td>{u.email}</td>
+                <td>{u.role}</td>
+                <td className="text-center">
+                  <input
+                    type="checkbox"
+                    checked={u.is_active}
+                    disabled={saving === u.id}
+                    onChange={() => toggleFlag(u, "is_active")}
+                  />
+                </td>
+                <td className="text-center">
+                  <input
+                    type="checkbox"
+                    checked={u.is_staff}
+                    disabled={saving === u.id}
+                    onChange={() => toggleFlag(u, "is_staff")}
+                  />
+                </td>
+                <td className="text-center">
+                  <input
+                    type="checkbox"
+                    checked={u.is_superuser}
+                    disabled={saving === u.id}
+                    onChange={() => toggleFlag(u, "is_superuser")}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+
+----------------------------------------
+

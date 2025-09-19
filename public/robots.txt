@@ -1,0 +1,18 @@
+# *
+User-agent: *
+Allow: /blog
+Allow: /blog/*
+Disallow: /_allauth
+Disallow: /api
+Disallow: /drf
+Disallow: /ninja
+Disallow: /account
+Disallow: /admin
+Disallow: /blog/not-found
+
+# Host
+Host: https://oem-x.my.id
+
+# Sitemaps
+Sitemap: https://oem-x.my.id/sitemap.xml
+Sitemap: https://oem-x.my.id/server-sitemap.xml
