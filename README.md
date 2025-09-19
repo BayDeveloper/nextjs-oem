@@ -1,75 +1,96 @@
-Oke, ini draft Developer Guide yang bisa langsung kamu tempel ke README.md biar developer lain langsung ngerti cara kerja repo-mu:
+📦 Nextjs-OEM Git Workflow
 
-🚀 Developer Guide
-🏗️ Branch Workflow
+Repo ini menggunakan workflow sederhana dengan 2 branch utama:
 
-dev → branch untuk pengembangan harian. Semua fitur/bugfix merge ke sini.
+dev → tempat kerja harian (development, fitur baru, bugfix).
 
-main → branch stabil untuk rilis ke production.
+main → branch stabil (production-ready).
 
-🔀 Switch Branch
+Tiga file .sh membantu otomatisasi workflow:
 
-Gunakan script:
+🚀 1. deploy-to-github.sh
+
+Tujuan: inisialisasi repo & push pertama kali ke GitHub.
+
+./deploy-to-github.sh
+
+
+✅ Fungsi:
+
+Membuat repo GitHub (jika belum ada).
+
+Menambahkan remote origin.
+
+Commit awal (exclude folder combined/).
+
+Push ke GitHub.
+
+📌 Jalankan sekali saja di awal project.
+
+🔀 2. switch-branch.sh
+
+Tujuan: pindah branch dengan aman.
+
+./switch-branch.sh <branch>
+
+
+Contoh:
 
 ./switch-branch.sh dev
 ./switch-branch.sh main
 
 
-Kalau ada perubahan belum di-commit dan ingin pindah paksa:
+✅ Fungsi:
 
-./switch-branch.sh dev --force
+Menolak pindah branch kalau ada perubahan belum di-commit/stash.
 
-📦 Release Workflow
+Checkout branch yang sudah ada.
 
-Gunakan script release.sh untuk merilis:
+Kalau branch belum ada → dibuat otomatis & push ke GitHub.
 
-./release.sh
+📌 Gunakan ini saat mau pindah kerja antar branch.
 
+🏷️ 3. release.sh
 
-Akan otomatis merge dev → main, push, bikin tag versi, lalu merge balik main → dev.
-
-Kalau tidak kasih versi, patch version naik otomatis (misalnya v1.0.0 → v1.0.1).
-
-Kalau mau tentukan versi sendiri:
-
-./release.sh v2.0.0
-
-🛡️ Git Hooks (Keamanan Otomatis)
-
-Hooks dipasang otomatis saat pertama kali menjalankan ./release.sh:
-
-Pre-commit hook
-
-Mencegah file .env* (kecuali .env.example) ikut di-commit.
-
-Kalau ketemu → commit ditolak + solusi cepat ditampilkan.
-
-Pre-push hook
-
-Mencegah folder temporary seperti combined/, .next/, build/ ikut ke repo.
-
-Kalau ketemu → push ditolak + solusi cepat ditampilkan.
-
-Reminder workflow release ditampilkan sebelum push lanjut.
-
-📖 Contoh Alur Kerja
-
-Buat perubahan di dev, lalu commit:
-
-git add .
-git commit -m "feat: tambah fitur baru"
-
-
-Push ke GitHub:
-
-git push
-
-
-Saat siap rilis versi baru:
+Tujuan: rilis versi baru dari dev ke main.
 
 ./release.sh
 
 
-atau tentukan versi manual:
+Atau tentukan versi manual:
 
 ./release.sh v1.1.0
+
+
+✅ Fungsi:
+
+Stash perubahan lokal sementara.
+
+Checkout main & merge dari dev.
+
+Buat tag versi (vX.Y.Z).
+
+Push main + tag ke GitHub.
+
+Checkout dev lagi.
+
+Merge balik main → dev.
+
+Restore perubahan lokal.
+
+📌 Jalankan setiap kali mau buat release baru.
+
+🔄 Alur Workflow
+dev (kerja harian)  →  ./release.sh  →  main (stabil)
+                              ↓
+                       tag v1.0.3 dibuat
+                              ↓
+                ./release.sh sync main → dev
+
+⚡ Best Practice
+
+Kerjakan fitur & bugfix di dev.
+
+Jalankan ./release.sh saat siap rilis stabil.
+
+Tag versi otomatis (v1.0.0, v1.0.1, dst).
