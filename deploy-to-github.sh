@@ -64,3 +64,4 @@ git push -u origin $BRANCH
 
 echo "🎉 Selesai! Repo siap diakses di:"
 gh repo view $GITHUB_USER/$REPO_NAME --web
+devx@x-dev:~/project/exportimport/nextjs-oem$ 
