@@ -14,6 +14,7 @@ Tujuan: inisialisasi repo & push pertama kali ke GitHub.
 
 ./deploy-to-github.sh
 
+git push -u origin dev
 
 ✅ Fungsi:
 
