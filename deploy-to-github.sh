@@ -48,9 +48,10 @@ else
   git remote add origin $REMOTE_URL
 fi
 
-# === Tambah & commit ===
-echo "📝 Menambahkan semua file..."
-git add .
+# === Tambah & commit (exclude combined/) ===
+echo "📝 Menambahkan semua file (exclude combined/)..."
+git add --all . ':!combined'
+
 if git diff-index --quiet HEAD --; then
   echo "⚠️ Tidak ada perubahan untuk di-commit."
 else
