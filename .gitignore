@@ -42,4 +42,5 @@ next-env.d.ts
 
 # Exclude generated/temporary files
 combined/
+src/combined/
 *.txt
