@@ -1,36 +1,75 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+Oke, ini draft Developer Guide yang bisa langsung kamu tempel ke README.md biar developer lain langsung ngerti cara kerja repo-mu:
 
-## Getting Started
+🚀 Developer Guide
+🏗️ Branch Workflow
 
-First, run the development server:
+dev → branch untuk pengembangan harian. Semua fitur/bugfix merge ke sini.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+main → branch stabil untuk rilis ke production.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+🔀 Switch Branch
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Gunakan script:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+./switch-branch.sh dev
+./switch-branch.sh main
 
-## Learn More
 
-To learn more about Next.js, take a look at the following resources:
+Kalau ada perubahan belum di-commit dan ingin pindah paksa:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+./switch-branch.sh dev --force
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+📦 Release Workflow
 
-## Deploy on Vercel
+Gunakan script release.sh untuk merilis:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+./release.sh
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+Akan otomatis merge dev → main, push, bikin tag versi, lalu merge balik main → dev.
+
+Kalau tidak kasih versi, patch version naik otomatis (misalnya v1.0.0 → v1.0.1).
+
+Kalau mau tentukan versi sendiri:
+
+./release.sh v2.0.0
+
+🛡️ Git Hooks (Keamanan Otomatis)
+
+Hooks dipasang otomatis saat pertama kali menjalankan ./release.sh:
+
+Pre-commit hook
+
+Mencegah file .env* (kecuali .env.example) ikut di-commit.
+
+Kalau ketemu → commit ditolak + solusi cepat ditampilkan.
+
+Pre-push hook
+
+Mencegah folder temporary seperti combined/, .next/, build/ ikut ke repo.
+
+Kalau ketemu → push ditolak + solusi cepat ditampilkan.
+
+Reminder workflow release ditampilkan sebelum push lanjut.
+
+📖 Contoh Alur Kerja
+
+Buat perubahan di dev, lalu commit:
+
+git add .
+git commit -m "feat: tambah fitur baru"
+
+
+Push ke GitHub:
+
+git push
+
+
+Saat siap rilis versi baru:
+
+./release.sh
+
+
+atau tentukan versi manual:
+
+./release.sh v1.1.0
